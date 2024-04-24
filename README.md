@@ -2,6 +2,8 @@
 
 A Sphinx extension to embed website screenshots.
 
+![Example screenshot](https://raw.githubusercontent.com/tushuhei/sphinxcontrib-screenshot/main/example.png)
+
 ## Install
 
 ```bash
@@ -38,12 +40,12 @@ You can include a caption for the screenshot's `figure` directive.
   :caption: This is a screenshot for www.example.com
 ```
 
-You can describe the interaction that you want to have with the webpage before taking a screenshot. `page` is the [Playwright's Page instance](https://playwright.dev/docs/api/class-page).
+You can describe the interaction that you want to have with the webpage before taking a screenshot in JavaScript.
 
 ```rst
 .. screenshot:: http://www.example.com
 
-    page.get_by_role('link').click()
+  document.querySelector('button').click();
 ```
 
 
