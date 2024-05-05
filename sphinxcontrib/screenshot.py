@@ -32,7 +32,7 @@ Meta = typing.TypedDict('Meta', {
     'parallel_write_safe': bool
 })
 
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 
 
 class ScreenshotDirective(SphinxDirective):
