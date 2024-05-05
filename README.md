@@ -48,6 +48,20 @@ You can describe the interaction that you want to have with the webpage before t
   document.querySelector('button').click();
 ```
 
+## Pro tips
+`sphinxcontrib-screenshot` supports URLs with the HTTP and HTTPS protocols.
+To take screenshots of local files and build the document while running a local server for them, you can use the NPM library [concurrently](https://www.npmjs.com/package/concurrently) in the following way:
+
+### Build the document
+```bash
+  npx --yes concurrently -k --success=first "make html" "python3 -m http.server 3000 --directory=examples"
+```
+
+### Watch and build the document
+```bash
+  npx --yes concurrently -k "make livehtml" "python3 -m http.server 3000 --directory=examples"
+```
+
 
 ## Notes
 
