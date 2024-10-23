@@ -161,7 +161,7 @@ class ScreenshotDirective(SphinxDirective):
     figure_node = nodes.figure('', image_node)
 
     if figclass:
-      figure_node['classes'] = figclass
+      figure_node['classes'].append(figclass)
 
     if caption_text:
       parsed = nodes.Element()
