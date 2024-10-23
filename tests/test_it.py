@@ -54,5 +54,4 @@ def test_default(app: SphinxTestApp, status: StringIO,
   assert img_with_caption_a['src'] == img_with_caption_b['src']
 
   # The figure node should have the class name specified.
-  print(soup.find_all('figure')[-1]['class'])
-  assert 'round ' in set(soup.find_all('figure')[-1]['class'])
+  assert 'round ' in soup.find_all('figure')[-1]['class']
