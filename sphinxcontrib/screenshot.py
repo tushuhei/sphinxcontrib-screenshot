@@ -96,7 +96,7 @@ class ScreenshotDirective(SphinxDirective):
       filepath (str): The path to save the screenshot to.
       init_script (str): JavaScript code to be evaluated after the document
         was created but before any of its scripts were run. See more details at
- https://playwright.dev/python/docs/api/class-page#page-add-init-script
+        https://playwright.dev/python/docs/api/class-page#page-add-init-script
       interactions (str): JavaScript code to run before taking the screenshot
         after the page was loaded.
     """
