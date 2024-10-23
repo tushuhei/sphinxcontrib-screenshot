@@ -80,6 +80,7 @@ class ScreenshotDirective(SphinxDirective):
       'height': directives.positive_int,
       'width': directives.positive_int,
       'caption': directives.unchanged,
+      'figclass': directives.unchanged,
   }
   pool = ThreadPoolExecutor()
 
@@ -133,6 +134,7 @@ class ScreenshotDirective(SphinxDirective):
     height = self.options.get('height', 960)
     width = self.options.get('width', 1280)
     caption_text = self.options.get('caption', '')
+    figclass = self.options.get('figclass', '')
     interactions = '\n'.join(self.content)
 
     if urlparse(url).scheme not in {'http', 'https'}:
@@ -157,6 +159,9 @@ class ScreenshotDirective(SphinxDirective):
     rel_filepath = os.path.join(rel_ss_dirpath, filename).replace(os.sep, '/')
     image_node = nodes.image(uri=rel_filepath)
     figure_node = nodes.figure('', image_node)
+
+    if figclass:
+      figure_node['classes'].append(figclass)
 
     if caption_text:
       parsed = nodes.Element()

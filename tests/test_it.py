@@ -29,7 +29,7 @@ def test_default(app: SphinxTestApp, status: StringIO,
 
   # Every screenshot directive should become an image.
   imgs = soup.find_all('img')
-  assert len(list(imgs)) == 3
+  assert len(list(imgs)) == 4
 
   # The image size should be set as specified.
   img_obj = Image.open(app.outdir / imgs[0]['src'])
@@ -44,7 +44,7 @@ def test_default(app: SphinxTestApp, status: StringIO,
 
   # The images should be different after the specified user interaction.
   img_before_interaction = Image.open(app.outdir / imgs[0]['src'])
-  img_after_interaction = Image.open(app.outdir / imgs[-1]['src'])
+  img_after_interaction = Image.open(app.outdir / imgs[2]['src'])
   assert list(img_before_interaction.getdata()) != list(
       img_after_interaction.getdata())
 
@@ -52,3 +52,6 @@ def test_default(app: SphinxTestApp, status: StringIO,
   img_with_caption_a = imgs[0]
   img_with_caption_b = imgs[1]
   assert img_with_caption_a['src'] == img_with_caption_b['src']
+
+  # The figure node should have the class name specified.
+  assert 'round' in soup.find_all('figure')[-1]['class']
