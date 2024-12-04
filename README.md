@@ -48,6 +48,20 @@ You can describe the interaction that you want to have with the webpage before t
   document.querySelector('button').click();
 ```
 
+Use `figclass` option if you want to specify a class name to the image.
+
+```rst
+.. screenshot:: http://www.example.com
+  :figclass: foo
+```
+
+It also generates a PDF file when `pdf` option is given, which might be useful when you need scalable image assets.
+
+```rst
+.. screenshot:: http://www.example.com
+  :pdf:
+```
+
 ## Pro tips
 `sphinxcontrib-screenshot` supports URLs with the HTTP and HTTPS protocols.
 To take screenshots of local files and build the document while running a local server for them, you can use the NPM library [concurrently](https://www.npmjs.com/package/concurrently) in the following way:
