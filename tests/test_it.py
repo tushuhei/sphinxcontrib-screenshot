@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from io import StringIO
 
 import pytest
@@ -29,7 +30,7 @@ def test_default(app: SphinxTestApp, status: StringIO,
 
   # Every screenshot directive should become an image.
   imgs = soup.find_all('img')
-  assert len(list(imgs)) == 4
+  assert len(list(imgs)) == 5
 
   # The image size should be set as specified.
   img_obj = Image.open(app.outdir / imgs[0]['src'])
@@ -54,4 +55,16 @@ def test_default(app: SphinxTestApp, status: StringIO,
   assert img_with_caption_a['src'] == img_with_caption_b['src']
 
   # The figure node should have the class name specified.
-  assert 'round' in soup.find_all('figure')[-1]['class']
+  assert 'round' in soup.find_all('figure')[3]['class']
+
+  # Should generate a PDF file if specified.
+  img_with_pdf = imgs[4]['src']
+  root, ext = os.path.splitext(os.path.basename(img_with_pdf))
+  pdf_filepath = app.outdir / '_static' / 'screenshots' / f'{root}.pdf'
+  assert os.path.exists(pdf_filepath)
+
+  # Should not generate a PDF file if not specified.
+  img_without_pdf = imgs[2]['src']
+  root, ext = os.path.splitext(os.path.basename(img_without_pdf))
+  pdf_filepath = app.outdir / '_static' / 'screenshots' / f'{root}.pdf'
+  assert not os.path.exists(pdf_filepath)

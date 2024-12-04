@@ -72,6 +72,21 @@ class ScreenshotDirective(SphinxDirective):
 
     document.querySelector('button').click();
   ```
+
+  Use `figclass` option if you want to specify a class name to the image.
+
+  ```rst
+  .. screenshot:: http://www.example.com
+    :figclass: foo
+  ```
+
+  It also generates a PDF file when `pdf` option is given, which might be
+  useful when you need scalable image assets.
+
+  ```rst
+  .. screenshot:: http://www.example.com
+    :pdf:
+  ```
   """
 
   required_arguments = 1  # URL
@@ -81,12 +96,13 @@ class ScreenshotDirective(SphinxDirective):
       'width': directives.positive_int,
       'caption': directives.unchanged,
       'figclass': directives.unchanged,
+      'pdf': directives.flag,
   }
   pool = ThreadPoolExecutor()
 
   @staticmethod
   def take_screenshot(url: str, width: int, height: int, filepath: str,
-                      init_script: str, interactions: str):
+                      init_script: str, interactions: str, generate_pdf: bool):
     """Takes a screenshot with Playwright's Chromium browser.
 
     Args:
@@ -99,6 +115,7 @@ class ScreenshotDirective(SphinxDirective):
         https://playwright.dev/python/docs/api/class-page#page-add-init-script
       interactions (str): JavaScript code to run before taking the screenshot
         after the page was loaded.
+      generate_pdf (bool): Generate a PDF file along with the screenshot.
     """
     with sync_playwright() as playwright:
       browser = playwright.chromium.launch()
@@ -119,6 +136,10 @@ class ScreenshotDirective(SphinxDirective):
         raise RuntimeError('Timeout error occured at %s in executing\n%s' %
                            (url, interactions))
       page.screenshot(path=filepath)
+      if generate_pdf:
+        page.emulate_media(media='screen')
+        root, ext = os.path.splitext(filepath)
+        page.pdf(width=f'{width}px', height=f'{height}px', path=root + '.pdf')
       page.close()
       browser.close()
 
@@ -135,6 +156,7 @@ class ScreenshotDirective(SphinxDirective):
     width = self.options.get('width', 1280)
     caption_text = self.options.get('caption', '')
     figclass = self.options.get('figclass', '')
+    pdf = 'pdf' in self.options
     interactions = '\n'.join(self.content)
 
     if urlparse(url).scheme not in {'http', 'https'}:
@@ -150,7 +172,7 @@ class ScreenshotDirective(SphinxDirective):
     if not os.path.exists(filepath):
       fut = self.pool.submit(ScreenshotDirective.take_screenshot, url, width,
                              height, filepath, screenshot_init_script,
-                             interactions)
+                             interactions, pdf)
       fut.result()
 
     # Create image and figure nodes
