@@ -14,7 +14,9 @@
 
 import hashlib
 import os
+import threading
 import typing
+import wsgiref.simple_server
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
 
@@ -23,7 +25,9 @@ from docutils.parsers.rst import directives
 from docutils.statemachine import ViewList
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
+from portpicker import pick_unused_port
 from sphinx.application import Sphinx
+from sphinx.config import Config
 from sphinx.util.docutils import SphinxDirective
 
 Meta = typing.TypedDict('Meta', {
@@ -143,6 +147,12 @@ class ScreenshotDirective(SphinxDirective):
       page.close()
       browser.close()
 
+  def evaluate_substitutions(self, text: str) -> str:
+    substitutions = self.state.document.substitution_defs
+    for key, value in substitutions.items():
+      text = text.replace(f"|{key}|", value.astext())
+    return text
+
   def run(self) -> typing.List[nodes.Node]:
     screenshot_init_script: str = self.env.config.screenshot_init_script or ''
 
@@ -151,7 +161,7 @@ class ScreenshotDirective(SphinxDirective):
     os.makedirs(ss_dirpath, exist_ok=True)
 
     # Parse parameters
-    url = self.arguments[0]
+    url = self.evaluate_substitutions(self.arguments[0])
     height = self.options.get('height', 960)
     width = self.options.get('width', 1280)
     caption_text = self.options.get('caption', '')
@@ -195,9 +205,42 @@ class ScreenshotDirective(SphinxDirective):
     return [figure_node]
 
 
+app_threads = {}
+
+
+def setup_apps(app: Sphinx, config: Config):
+  """Start the WSGI application threads.
+
+    A new replacement is created for each WSGI app."""
+  for app_name, app_builder in config.screenshot_apps.items():
+    port = pick_unused_port()
+    config.rst_prolog = (
+        config.rst_prolog or
+        "") + f".. |{app_name}| replace:: http://localhost:{port}\n"
+    wsgi_app = app_builder()
+    httpd = wsgiref.simple_server.make_server("localhost", port, wsgi_app)
+    thread = threading.Thread(target=httpd.serve_forever)
+    thread.start()
+    app_threads[app_name] = (httpd, thread)
+
+
+def teardown_apps(app: Sphinx, exception: typing.Optional[Exception]):
+  """Shut down the WSGI application threads."""
+  for httpd, thread in app_threads.values():
+    httpd.shutdown()
+    thread.join()
+
+
 def setup(app: Sphinx) -> Meta:
   app.add_directive('screenshot', ScreenshotDirective)
   app.add_config_value('screenshot_init_script', '', 'env')
+  app.add_config_value(
+      'screenshot_apps', {},
+      'env',
+      types=[dict[str, typing.Any]],
+      description="A dict of WSGI apps")
+  app.connect('config-inited', setup_apps)
+  app.connect('build-finished', teardown_apps)
   return {
       'version': __version__,
       'parallel_read_safe': True,

@@ -62,7 +62,36 @@ It also generates a PDF file when `pdf` option is given, which might be useful w
   :pdf:
 ```
 
-## Pro tips
+## Local WSGI application
+
+`sphinxcontrib-screenshot` can launch your local WSGI applications and take screenshot of thems.
+Define them in the `screenshot_apps` dict. The key must be a name you choose for your applications, and the value must be a callable that creates a WSGI app:
+
+```python
+from flask import Flask
+
+def create_app():
+    app = Flask(__name__)
+
+    @app.route("/hello")
+    def hello():
+        return "Hello, world!"
+
+    return app
+
+
+screenshot_apps = {
+    "example": create_app,
+}
+```
+
+Then you can use a Sphinx substitution with your application name to refer to its temporary URL:
+
+```rst
+.. screenshot:: |example|/hello
+```
+
+## Local http server
 `sphinxcontrib-screenshot` supports URLs with the HTTP and HTTPS protocols.
 To take screenshots of local files and build the document while running a local server for them, you can use the NPM library [concurrently](https://www.npmjs.com/package/concurrently) in the following way:
 
