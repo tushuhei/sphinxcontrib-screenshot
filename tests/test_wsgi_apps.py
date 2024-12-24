@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,14 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from pathlib import Path
+from io import StringIO
 
 import pytest
+from bs4 import BeautifulSoup
+from sphinx.testing.util import SphinxTestApp
 
-pytest_plugins = "sphinx.testing.fixtures"
 
+@pytest.mark.sphinx('html', testroot="wsgi-apps")
+def test_default(app: SphinxTestApp, status: StringIO, warning: StringIO,
+                 data_regression) -> None:
+  app.build()
+  out_html = app.outdir / "index.html"
 
-@pytest.fixture(scope="session")
-def rootdir() -> Path:
-  return Path(__file__).parent.absolute() / "roots"
+  soup = BeautifulSoup(out_html.read_text(), "html.parser")
+  imgs = soup.find_all('img')
+
+  img_path = app.outdir / imgs[0]['src']
+  with open(img_path, "rb") as fd:
+    data_regression.check(fd.read())
