@@ -65,12 +65,13 @@ It also generates a PDF file when `pdf` option is given, which might be useful w
 ## Local WSGI application
 
 `sphinxcontrib-screenshot` can launch your local WSGI applications and take screenshot of thems.
-Define them in the `screenshot_apps` dict. The key must be a name you choose for your applications, and the value must be a callable that creates a WSGI app:
+Define them in the `screenshot_apps` dict.
+The key must be a name you choose for your applications, and the value must be a callable that creates a WSGI app:
 
 ```python
 from flask import Flask
 
-def create_app():
+def create_app(sphinx_app):
     app = Flask(__name__)
 
     @app.route("/hello")
@@ -78,12 +79,14 @@ def create_app():
         return "Hello, world!"
 
     return app
+```
 
-
+```
 screenshot_apps = {
-    "example": create_app,
+    "example": "my_module.my_app:create_app",
 }
 ```
+Note that you might manually add your application module in `sys.path`.
 
 Then you can use a Sphinx substitution with your application name to refer to its temporary URL:
 

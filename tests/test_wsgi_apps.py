@@ -20,7 +20,7 @@ from sphinx.testing.util import SphinxTestApp
 
 @pytest.mark.sphinx('html', testroot="wsgi-apps")
 def test_default(app: SphinxTestApp, status: StringIO, warning: StringIO,
-                 data_regression) -> None:
+                 image_regression) -> None:
   app.build()
   out_html = app.outdir / "index.html"
 
@@ -29,4 +29,4 @@ def test_default(app: SphinxTestApp, status: StringIO, warning: StringIO,
 
   img_path = app.outdir / imgs[0]['src']
   with open(img_path, "rb") as fd:
-    data_regression.check(fd.read())
+    image_regression.check(fd.read())
