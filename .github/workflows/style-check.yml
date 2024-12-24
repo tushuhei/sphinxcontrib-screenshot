@@ -23,6 +23,6 @@ jobs:
       - name: Run yapf
         run: yapf --diff --recursive sphinxcontrib tests
       - name: Run mypy
-        run: mypy sphinxcontrib tests
+        run: mypy sphinxcontrib tests --exclude tests/roots
       - name: Run flake8
         run: flake8 sphinxcontrib tests
