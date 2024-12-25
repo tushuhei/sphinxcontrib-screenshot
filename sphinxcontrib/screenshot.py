@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import hashlib
+import importlib
 import os
 import threading
 import typing
@@ -208,20 +209,28 @@ class ScreenshotDirective(SphinxDirective):
 app_threads = {}
 
 
+def resolve_wsgi_app_import(app: Sphinx, app_path: str):
+  module_path, app_attribute = app_path.split(":")
+  module = importlib.import_module(module_path)
+  app_attr = getattr(module, app_attribute)
+  wsgi_app = app_attr(app) if callable(app_attr) else app_attr
+  return wsgi_app
+
+
 def setup_apps(app: Sphinx, config: Config):
   """Start the WSGI application threads.
 
     A new replacement is created for each WSGI app."""
-  for app_name, app_builder in config.screenshot_apps.items():
+  for wsgi_app_name, wsgi_app_path in config.screenshot_apps.items():
     port = pick_unused_port()
     config.rst_prolog = (
         config.rst_prolog or
-        "") + f".. |{app_name}| replace:: http://localhost:{port}\n"
-    wsgi_app = app_builder()
+        "") + f"\n.. |{wsgi_app_name}| replace:: http://localhost:{port}\n"
+    wsgi_app = resolve_wsgi_app_import(app, wsgi_app_path)
     httpd = wsgiref.simple_server.make_server("localhost", port, wsgi_app)
     thread = threading.Thread(target=httpd.serve_forever)
     thread.start()
-    app_threads[app_name] = (httpd, thread)
+    app_threads[wsgi_app_name] = (httpd, thread)
 
 
 def teardown_apps(app: Sphinx, exception: typing.Optional[Exception]):

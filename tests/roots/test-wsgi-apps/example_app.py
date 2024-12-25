@@ -11,10 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import pathlib
-import sys
+def create_app(sphinx_app):
 
-sys.path.insert(0, str(pathlib.Path(__file__).parent.resolve()))
+  def hello_world_app(environ, start_response):
+    headers = [('Content-type', 'text/html; charset=utf-8')]
+    start_response('200 OK', headers)
+    style = b"font-family: arial; font-size: 10px; margin: 0; padding: 0"
+    return [
+        b"<html>" + b'<body style="' + style + b'">' + b"Hello, World!" +
+        b"</body>" + b"</html>"
+    ]
 
-extensions = ['sphinxcontrib.screenshot']
-screenshot_apps = {"example": "example_app:create_app"}
+  return hello_world_app

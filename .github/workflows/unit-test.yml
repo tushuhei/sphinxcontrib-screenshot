@@ -28,3 +28,10 @@ jobs:
         run: playwright install
       - name: Run unittest
         run: pytest
+      - name: Upload failed image artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failed-images-${{ matrix.os }}-${{ matrix.python-version }}
+          # https://docs.pytest.org/en/stable/how-to/tmp_path.html#temporary-directory-location-and-retention
+          path: /tmp/pytest-of-*/pytest-*/*/*/*.obtained.png
