@@ -62,6 +62,12 @@ It also generates a PDF file when `pdf` option is given, which might be useful w
   :pdf:
 ```
 
+You can set the color scheme you prefer to display the page ('dark' or 'light'):
+```rst
+.. screenshot:: http://www.example.com
+  :color-scheme: dark
+```
+
 ## Local WSGI application
 
 `sphinxcontrib-screenshot` can launch your local WSGI applications and take screenshot of thems.

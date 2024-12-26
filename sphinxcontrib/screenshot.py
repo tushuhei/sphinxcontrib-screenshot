@@ -24,6 +24,7 @@ from urllib.parse import urlparse
 from docutils import nodes
 from docutils.parsers.rst import directives
 from docutils.statemachine import ViewList
+from playwright._impl._helper import ColorScheme
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 from portpicker import pick_unused_port
@@ -102,12 +103,14 @@ class ScreenshotDirective(SphinxDirective):
       'caption': directives.unchanged,
       'figclass': directives.unchanged,
       'pdf': directives.flag,
+      'color-scheme': str,
   }
   pool = ThreadPoolExecutor()
 
   @staticmethod
   def take_screenshot(url: str, width: int, height: int, filepath: str,
-                      init_script: str, interactions: str, generate_pdf: bool):
+                      init_script: str, interactions: str, generate_pdf: bool,
+                      color_scheme: ColorScheme):
     """Takes a screenshot with Playwright's Chromium browser.
 
     Args:
@@ -121,10 +124,11 @@ class ScreenshotDirective(SphinxDirective):
       interactions (str): JavaScript code to run before taking the screenshot
         after the page was loaded.
       generate_pdf (bool): Generate a PDF file along with the screenshot.
+      color_scheme (str): The preferred color scheme. Can be 'light' or 'dark'.
     """
     with sync_playwright() as playwright:
       browser = playwright.chromium.launch()
-      page = browser.new_page()
+      page = browser.new_page(color_scheme=color_scheme)
       page.set_default_timeout(10000)
       page.set_viewport_size({'width': width, 'height': height})
       try:
@@ -165,6 +169,7 @@ class ScreenshotDirective(SphinxDirective):
     url = self.evaluate_substitutions(self.arguments[0])
     height = self.options.get('height', 960)
     width = self.options.get('width', 1280)
+    color_scheme = self.options.get('color-scheme', 'null')
     caption_text = self.options.get('caption', '')
     figclass = self.options.get('figclass', '')
     pdf = 'pdf' in self.options
@@ -183,7 +188,7 @@ class ScreenshotDirective(SphinxDirective):
     if not os.path.exists(filepath):
       fut = self.pool.submit(ScreenshotDirective.take_screenshot, url, width,
                              height, filepath, screenshot_init_script,
-                             interactions, pdf)
+                             interactions, pdf, color_scheme)
       fut.result()
 
     # Create image and figure nodes
