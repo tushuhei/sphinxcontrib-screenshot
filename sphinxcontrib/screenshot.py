@@ -14,6 +14,7 @@
 
 import hashlib
 import importlib
+import importlib.metadata
 import os
 import threading
 import typing
@@ -37,8 +38,6 @@ Meta = typing.TypedDict('Meta', {
     'parallel_read_safe': bool,
     'parallel_write_safe': bool
 })
-
-__version__ = '0.1.3'
 
 
 class ScreenshotDirective(SphinxDirective):
@@ -267,7 +266,7 @@ def setup(app: Sphinx) -> Meta:
   app.connect('config-inited', setup_apps)
   app.connect('build-finished', teardown_apps)
   return {
-      'version': __version__,
+      'version': importlib.metadata.version('sphinxcontrib-screenshot'),
       'parallel_read_safe': True,
       'parallel_write_safe': True,
   }
