@@ -88,6 +88,49 @@ You can choose the browser to use to take the screenshots with the `:browser:` o
 ```rst
 .. screenshot:: http://www.example.com
   :browser: firefox
+
+## Custom Playwright contexts
+
+You can use the `screenshot_contexts` configuration parameter and the `:context:` option to set up custom contexts for the screenshots.
+This can be useful for instance to perform authentication requests before accessing to protected pages.
+Note that you can use the `storage_state` parameter to load a previous context and avoid making authentication requests for every screenshot.
+
+```python
+def logged_as_user(browser, url, color_scheme):
+    try:
+        # Attempt to load a saved context from 'user.json'
+        context = browser.new_context(
+            color_scheme=color_scheme, storage_state="user.json"
+        )
+    except FileNotFoundError:
+        # Create a fresh new context
+        context = browser.new_context(color_scheme=color_scheme)
+
+        # Load the authentication page
+        page = context.new_page()
+        page.goto(get_root_url(url) + "/login")
+        page.wait_for_load_state()
+
+        # Perform authentication
+        page.locator("input[name=login]").fill("user")
+        page.locator("input[name=password]").fill("password")
+        page.click("*[type=submit]")
+        page.wait_for_load_state()
+
+        # Save the context in 'user.json'
+        context.storage_state(path="user.json")
+    return context
+```
+
+```python
+screenshot_contexts = {
+    "logged-as-user": "my_module.doc:logged_as_user",
+}
+```
+
+```rst
+.. screenshot:: https://www.example.com/protected-page
+  :context: logged-as-user
 ```
 
 ## Local WSGI application

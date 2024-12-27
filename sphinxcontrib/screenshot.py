@@ -26,6 +26,7 @@ from docutils import nodes
 from docutils.parsers.rst import directives
 from docutils.statemachine import ViewList
 from playwright._impl._helper import ColorScheme
+from playwright.sync_api import Browser, BrowserContext
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 from portpicker import pick_unused_port
@@ -105,14 +106,17 @@ class ScreenshotDirective(SphinxDirective):
       'pdf': directives.flag,
       'color-scheme': str,
       'full-page': directives.flag,
+      'context': str,
   }
   pool = ThreadPoolExecutor()
 
   @staticmethod
-  def take_screenshot(url: str, browser_name: str, width: int, height: int,
-                      filepath: str, init_script: str, interactions: str,
-                      generate_pdf: bool, color_scheme: ColorScheme,
-                      full_page: bool):
+  def take_screenshot(
+      url: str, browser_name: str, width: int, height: int, filepath: str,
+      init_script: str, interactions: str, generate_pdf: bool,
+      color_scheme: ColorScheme, full_page: bool,
+      context_builder: typing.Optional[typing.Callable[[Browser, str, str],
+                                                       BrowserContext]]):
     """Takes a screenshot with Playwright's Chromium browser.
 
     Args:
@@ -127,12 +131,25 @@ class ScreenshotDirective(SphinxDirective):
         after the page was loaded.
       generate_pdf (bool): Generate a PDF file along with the screenshot.
       color_scheme (str): The preferred color scheme. Can be 'light' or 'dark'.
+      context: A method to build the Playwright context.
     """
     with sync_playwright() as playwright:
       browser = getattr(playwright, browser_name).launch()
-      page = browser.new_page(color_scheme=color_scheme)
+
+      if context_builder:
+        try:
+          context = context_builder(browser, url, color_scheme)
+        except PlaywrightTimeoutError:
+          raise RuntimeError(
+              'Timeout error occured at %s in executing py init script %s' %
+              (url, context_builder.__name__))
+      else:
+        context = browser.new_context(color_scheme=color_scheme)
+
+      page = context.new_page()
       page.set_default_timeout(10000)
       page.set_viewport_size({'width': width, 'height': height})
+
       try:
         if init_script:
           page.add_init_script(init_script)
@@ -182,6 +199,7 @@ class ScreenshotDirective(SphinxDirective):
     pdf = 'pdf' in self.options
     full_page = ('full-page' in self.options or
                  self.env.config.screenshot_default_full_page)
+    context = self.options.get('context', '')
     interactions = '\n'.join(self.content)
 
     if urlparse(url).scheme not in {'http', 'https'}:
@@ -192,17 +210,24 @@ class ScreenshotDirective(SphinxDirective):
     hash_input = "_".join([
         raw_url, browser,
         str(height),
-        str(width), color_scheme, interactions,
+        str(width), color_scheme, context, interactions,
         str(full_page)
     ])
     filename = hashlib.md5(hash_input.encode()).hexdigest() + '.png'
     filepath = os.path.join(ss_dirpath, filename)
 
+    if context:
+      context_builder_path = self.config.screenshot_contexts[context]
+      context_builder = resolve_python_method(context_builder_path)
+    else:
+      context_builder = None
+
     # Check if the file already exists. If not, take a screenshot
     if not os.path.exists(filepath):
       fut = self.pool.submit(ScreenshotDirective.take_screenshot, url, browser,
                              width, height, filepath, screenshot_init_script,
-                             interactions, pdf, color_scheme, full_page)
+                             interactions, pdf, color_scheme, full_page,
+                             context_builder)
       fut.result()
 
     # Create image and figure nodes
@@ -228,12 +253,11 @@ class ScreenshotDirective(SphinxDirective):
 app_threads = {}
 
 
-def resolve_wsgi_app_import(app: Sphinx, app_path: str):
-  module_path, app_attribute = app_path.split(":")
+def resolve_python_method(import_path: str):
+  module_path, method_name = import_path.split(":")
   module = importlib.import_module(module_path)
-  app_attr = getattr(module, app_attribute)
-  wsgi_app = app_attr(app) if callable(app_attr) else app_attr
-  return wsgi_app
+  method = getattr(module, method_name)
+  return method
 
 
 def setup_apps(app: Sphinx, config: Config):
@@ -245,7 +269,8 @@ def setup_apps(app: Sphinx, config: Config):
     config.rst_prolog = (
         config.rst_prolog or
         "") + f"\n.. |{wsgi_app_name}| replace:: http://localhost:{port}\n"
-    wsgi_app = resolve_wsgi_app_import(app, wsgi_app_path)
+    app_builder = resolve_python_method(wsgi_app_path)
+    wsgi_app = app_builder(app)
     httpd = wsgiref.simple_server.make_server("localhost", port, wsgi_app)
     thread = threading.Thread(target=httpd.serve_forever)
     thread.start()
@@ -288,9 +313,14 @@ def setup(app: Sphinx) -> Meta:
       'env',
       description="The default color scheme for screenshots")
   app.add_config_value(
+      'screenshot_contexts', {},
+      'env',
+      types=[dict[str, str]],
+      description="A dict of paths to Playwright context build methods")
+  app.add_config_value(
       'screenshot_apps', {},
       'env',
-      types=[dict[str, typing.Any]],
+      types=[dict[str, str]],
       description="A dict of WSGI apps")
   app.connect('config-inited', setup_apps)
   app.connect('build-finished', teardown_apps)
