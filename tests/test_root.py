@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from io import StringIO
+
 import pytest
 from bs4 import BeautifulSoup
 from PIL import Image
@@ -55,3 +57,20 @@ def test_default(app: SphinxTestApp) -> None:
   assert imgsrc_before_interaction != imgsrc_after_interaction
   assert list(Image.open(imgsrc_before_interaction).getdata()) != list(
       Image.open(imgsrc_after_interaction).getdata())
+
+
+@pytest.mark.sphinx('html', testroot="default-size")
+def test_default_size(app: SphinxTestApp, status: StringIO, warning: StringIO,
+                      image_regression) -> None:
+  """Test the 'screenshot_default_width' and
+  'screenshot_default_height' configuration parameters."""
+  app.build()
+  out_html = app.outdir / "index.html"
+
+  soup = BeautifulSoup(out_html.read_text(), "html.parser")
+  imgs = soup.find_all('img')
+
+  img_obj = Image.open(app.outdir / imgs[0]['src'])
+  width, height = img_obj.size
+  assert width == 1920
+  assert height == 1200

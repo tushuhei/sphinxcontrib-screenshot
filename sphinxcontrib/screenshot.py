@@ -167,8 +167,9 @@ class ScreenshotDirective(SphinxDirective):
 
     # Parse parameters
     url = self.evaluate_substitutions(self.arguments[0])
-    height = self.options.get('height', 960)
-    width = self.options.get('width', 1280)
+    height = self.options.get('height',
+                              self.env.config.screenshot_default_height)
+    width = self.options.get('width', self.env.config.screenshot_default_width)
     color_scheme = self.options.get('color-scheme', 'null')
     caption_text = self.options.get('caption', '')
     figclass = self.options.get('figclass', '')
@@ -248,6 +249,16 @@ def teardown_apps(app: Sphinx, exception: typing.Optional[Exception]):
 def setup(app: Sphinx) -> Meta:
   app.add_directive('screenshot', ScreenshotDirective)
   app.add_config_value('screenshot_init_script', '', 'env')
+  app.add_config_value(
+      'screenshot_default_width',
+      1280,
+      'env',
+      description="The default width for screenshots")
+  app.add_config_value(
+      'screenshot_default_height',
+      960,
+      'env',
+      description="The default height for screenshots")
   app.add_config_value(
       'screenshot_apps', {},
       'env',
