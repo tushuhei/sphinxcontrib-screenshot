@@ -2,3 +2,27 @@
 python_version = 3.9
 pretty = true
 packages = ["sphinxcontrib"]
+
+[tool.tox]
+requires = ["tox>=4.19"]
+env_list = [
+    "py39",
+    "py310",
+    "py311",
+    "py312",
+    "py313",
+    "style",
+]
+
+[tool.tox.env_run_base]
+deps = ["-e .[dev]"]
+commands = [
+    ["pytest", "--showlocals", "--full-trace", "{posargs}"],
+]
+
+[tool.tox.env.style]
+skip_install = true
+commands = [
+    ["pre-commit", "run", "--all-files", "--show-diff-on-failure"],
+]
+
