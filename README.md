@@ -25,7 +25,14 @@ Then use the `screenshot` directive in your Sphinx source file.
 .. screenshot:: http://www.example.com
 ```
 
-You can also specify the screen size for the screenshot with `width` and `height` parameters.
+You can define the default size of your screenshots in `conf.py`:
+
+```python
+screenshot_default_width = 1920
+screenshot_default_height = 1200
+```
+
+You can also specify the screen size for a particular screenshot with `width` and `height` parameters.
 
 ```rst
 .. screenshot:: http://www.example.com
