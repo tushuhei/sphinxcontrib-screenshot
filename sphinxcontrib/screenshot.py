@@ -180,7 +180,7 @@ class ScreenshotDirective(SphinxDirective):
           f'Invalid URL: {url}. Only HTTP/HTTPS URLs are supported.')
 
     # Generate filename based on hash of parameters
-    hash_input = f'{url}_{height}_{width}_{interactions}'
+    hash_input = f'{url}_{height}_{width}_{color_scheme}_{interactions}'
     filename = hashlib.md5(hash_input.encode()).hexdigest() + '.png'
     filepath = os.path.join(ss_dirpath, filename)
 
