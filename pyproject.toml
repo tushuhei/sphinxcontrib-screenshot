@@ -41,6 +41,7 @@ dev = [
     "pre-commit",
     "pytest",
     "pytest-regressions[image]",
+    "pytesseract",
     "sphinx[test]",
     "toml",
     "tox",

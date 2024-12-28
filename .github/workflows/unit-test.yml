@@ -27,11 +27,21 @@ jobs:
       - name: Playwright install
         run: playwright install
       - name: Run unittest
-        run: pytest
+        id: pytest
+        run: |
+          output=$(pytest)
+          echo "::set-output name=pytest_output::$output"
+      - name: Extract file paths with '.obtained' pattern
+        if: failure()
+        id: faulty_images
+        run: |
+          output=$(echo "${{ steps.pytest.outputs.pytest_output }}" | grep '.obtained.')
+          echo "::set-output name=paths::$output"
       - name: Upload failed image artifact
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: failed-images-${{ matrix.os }}-${{ matrix.python-version }}
           # https://docs.pytest.org/en/stable/how-to/tmp_path.html#temporary-directory-location-and-retention
-          path: /tmp/pytest-of-*/pytest-*/*/*/*.obtained.png
+          path: |
+            "${{ steps.extract_paths.outputs.paths }}"
