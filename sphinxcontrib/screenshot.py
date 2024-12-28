@@ -169,7 +169,8 @@ class ScreenshotDirective(SphinxDirective):
     height = self.options.get('height',
                               self.env.config.screenshot_default_height)
     width = self.options.get('width', self.env.config.screenshot_default_width)
-    color_scheme = self.options.get('color-scheme', 'null')
+    color_scheme = self.options.get(
+        'color-scheme', self.env.config.screenshot_default_color_scheme)
     caption_text = self.options.get('caption', '')
     figclass = self.options.get('figclass', '')
     pdf = 'pdf' in self.options
@@ -258,6 +259,11 @@ def setup(app: Sphinx) -> Meta:
       960,
       'env',
       description="The default height for screenshots")
+  app.add_config_value(
+      'screenshot_default_color_scheme',
+      'null',
+      'env',
+      description="The default color scheme for screenshots")
   app.add_config_value(
       'screenshot_apps', {},
       'env',
