@@ -107,6 +107,7 @@ class ScreenshotDirective(SphinxDirective):
       'color-scheme': str,
       'full-page': directives.flag,
       'context': str,
+      'headers': directives.unchanged,
   }
   pool = ThreadPoolExecutor()
 
@@ -116,7 +117,8 @@ class ScreenshotDirective(SphinxDirective):
       init_script: str, interactions: str, generate_pdf: bool,
       color_scheme: ColorScheme, full_page: bool,
       context_builder: typing.Optional[typing.Callable[[Browser, str, str],
-                                                       BrowserContext]]):
+                                                       BrowserContext]],
+      headers: dict):
     """Takes a screenshot with Playwright's Chromium browser.
 
     Args:
@@ -153,6 +155,7 @@ class ScreenshotDirective(SphinxDirective):
       try:
         if init_script:
           page.add_init_script(init_script)
+        page.set_extra_http_headers(headers)
         page.goto(url)
         page.wait_for_load_state('networkidle')
 
@@ -201,6 +204,13 @@ class ScreenshotDirective(SphinxDirective):
                  self.env.config.screenshot_default_full_page)
     context = self.options.get('context', '')
     interactions = '\n'.join(self.content)
+    headers = self.options.get('headers', '')
+
+    request_headers = {**self.env.config.screenshot_default_headers}
+    if headers:
+      for header in headers.strip().split("\n"):
+        name, value = header.split(" ", 1)
+        request_headers[name] = value
 
     if urlparse(url).scheme not in {'http', 'https'}:
       raise RuntimeError(
@@ -227,7 +237,7 @@ class ScreenshotDirective(SphinxDirective):
       fut = self.pool.submit(ScreenshotDirective.take_screenshot, url, browser,
                              width, height, filepath, screenshot_init_script,
                              interactions, pdf, color_scheme, full_page,
-                             context_builder)
+                             context_builder, request_headers)
       fut.result()
 
     # Create image and figure nodes
@@ -317,6 +327,10 @@ def setup(app: Sphinx) -> Meta:
       'env',
       types=[dict[str, str]],
       description="A dict of paths to Playwright context build methods")
+  app.add_config_value(
+      'screenshot_default_headers', {},
+      'env',
+      description="The default headers to pass in requests")
   app.add_config_value(
       'screenshot_apps', {},
       'env',
