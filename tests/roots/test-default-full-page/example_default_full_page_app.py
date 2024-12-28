@@ -12,9 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
-import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).parent.resolve()))
 
-extensions = ['sphinxcontrib.screenshot']
-screenshot_apps = {"example": "example_color_scheme_app:create_app"}
+def create_app(sphinx_app):
+
+  def hello_world_app(environ, start_response):
+    headers = [('Content-type', 'text/html; charset=utf-8')]
+    start_response('200 OK', headers)
+
+    path = pathlib.Path(__file__).parent.resolve() / "index.html"
+    with open(path, "rb") as fd:
+      return [fd.read()]
+
+  return hello_world_app
