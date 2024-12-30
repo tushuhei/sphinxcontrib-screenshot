@@ -97,6 +97,7 @@ class ScreenshotDirective(SphinxDirective):
   required_arguments = 1  # URL
   has_content = True
   option_spec = {
+      'browser': str,
       'height': directives.positive_int,
       'width': directives.positive_int,
       'caption': directives.unchanged,
@@ -107,9 +108,9 @@ class ScreenshotDirective(SphinxDirective):
   pool = ThreadPoolExecutor()
 
   @staticmethod
-  def take_screenshot(url: str, width: int, height: int, filepath: str,
-                      init_script: str, interactions: str, generate_pdf: bool,
-                      color_scheme: ColorScheme):
+  def take_screenshot(url: str, browser_name: str, width: int, height: int,
+                      filepath: str, init_script: str, interactions: str,
+                      generate_pdf: bool, color_scheme: ColorScheme):
     """Takes a screenshot with Playwright's Chromium browser.
 
     Args:
@@ -126,7 +127,7 @@ class ScreenshotDirective(SphinxDirective):
       color_scheme (str): The preferred color scheme. Can be 'light' or 'dark'.
     """
     with sync_playwright() as playwright:
-      browser = playwright.chromium.launch()
+      browser = getattr(playwright, browser_name).launch()
       page = browser.new_page(color_scheme=color_scheme)
       page.set_default_timeout(10000)
       page.set_viewport_size({'width': width, 'height': height})
@@ -166,6 +167,8 @@ class ScreenshotDirective(SphinxDirective):
 
     # Parse parameters
     url = self.evaluate_substitutions(self.arguments[0])
+    browser = self.options.get('browser',
+                               self.env.config.screenshot_default_browser)
     height = self.options.get('height',
                               self.env.config.screenshot_default_height)
     width = self.options.get('width', self.env.config.screenshot_default_width)
@@ -180,14 +183,17 @@ class ScreenshotDirective(SphinxDirective):
           f'Invalid URL: {url}. Only HTTP/HTTPS URLs are supported.')
 
     # Generate filename based on hash of parameters
-    hash_input = f'{url}_{height}_{width}_{color_scheme}_{interactions}'
+    hash_input = "_".join(
+        [url, browser,
+         str(height),
+         str(width), color_scheme, interactions])
     filename = hashlib.md5(hash_input.encode()).hexdigest() + '.png'
     filepath = os.path.join(ss_dirpath, filename)
 
     # Check if the file already exists. If not, take a screenshot
     if not os.path.exists(filepath):
-      fut = self.pool.submit(ScreenshotDirective.take_screenshot, url, width,
-                             height, filepath, screenshot_init_script,
+      fut = self.pool.submit(ScreenshotDirective.take_screenshot, url, browser,
+                             width, height, filepath, screenshot_init_script,
                              interactions, pdf, color_scheme)
       fut.result()
 
@@ -258,6 +264,11 @@ def setup(app: Sphinx) -> Meta:
       960,
       'env',
       description="The default height for screenshots")
+  app.add_config_value(
+      'screenshot_default_browser',
+      'chromium',
+      'env',
+      description="The default browser for screenshots")
   app.add_config_value(
       'screenshot_apps', {},
       'env',

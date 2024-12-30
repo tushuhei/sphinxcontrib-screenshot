@@ -50,6 +50,7 @@ dev = [
     "types-portpicker",
     "types-Pillow",
     "types-setuptools",
+    "user-agents",
     "yapf",
 ]
 

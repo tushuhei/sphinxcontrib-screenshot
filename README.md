@@ -75,6 +75,13 @@ You can set the color scheme you prefer to display the page ('dark' or 'light'):
   :color-scheme: dark
 ```
 
+You can choose the browser to use to take the screenshots with the `:browser:` option or the `screenshot_default_browser` configuration parameter.
+
+```rst
+.. screenshot:: http://www.example.com
+  :browser: firefox
+```
+
 ## Local WSGI application
 
 `sphinxcontrib-screenshot` can launch your local WSGI applications and take screenshot of thems.
