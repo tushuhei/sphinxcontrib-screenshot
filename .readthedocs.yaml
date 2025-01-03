@@ -9,3 +9,4 @@ build:
   jobs:
     post_install:
       - pip install .[doc]
+      - playwright install
