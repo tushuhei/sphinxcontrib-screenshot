@@ -17,4 +17,4 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).parent.resolve()))
 
 extensions = ['sphinxcontrib.screenshot']
-screenshot_apps = {"example": "example_color_scheme_app:create_app"}
+screenshot_apps = {"example": "example_full_page_app:create_app"}

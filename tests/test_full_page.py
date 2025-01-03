@@ -18,9 +18,9 @@ from bs4 import BeautifulSoup
 from sphinx.testing.util import SphinxTestApp
 
 
-@pytest.mark.sphinx('html', testroot="color-schemes")
-def test_color_scheme_option(app: SphinxTestApp, status: StringIO,
-                             warning: StringIO, image_regression) -> None:
+@pytest.mark.sphinx('html', testroot="full-page")
+def test_full_page_option(app: SphinxTestApp, status: StringIO,
+                          warning: StringIO, image_regression) -> None:
   app.build()
   out_html = app.outdir / "index.html"
 
@@ -32,11 +32,9 @@ def test_color_scheme_option(app: SphinxTestApp, status: StringIO,
     image_regression.check(fd.read())
 
 
-@pytest.mark.sphinx('html', testroot="default-color-scheme")
-def test_default_color_scheme_config_parameter(app: SphinxTestApp,
-                                               status: StringIO,
-                                               warning: StringIO,
-                                               image_regression) -> None:
+@pytest.mark.sphinx('html', testroot="default-full-page")
+def test_default_full_page(app: SphinxTestApp, status: StringIO,
+                           warning: StringIO, image_regression) -> None:
   app.build()
   out_html = app.outdir / "index.html"
 

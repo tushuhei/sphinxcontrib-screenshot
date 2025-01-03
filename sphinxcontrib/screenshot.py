@@ -104,13 +104,15 @@ class ScreenshotDirective(SphinxDirective):
       'figclass': directives.unchanged,
       'pdf': directives.flag,
       'color-scheme': str,
+      'full-page': directives.flag,
   }
   pool = ThreadPoolExecutor()
 
   @staticmethod
   def take_screenshot(url: str, browser_name: str, width: int, height: int,
                       filepath: str, init_script: str, interactions: str,
-                      generate_pdf: bool, color_scheme: ColorScheme):
+                      generate_pdf: bool, color_scheme: ColorScheme,
+                      full_page: bool):
     """Takes a screenshot with Playwright's Chromium browser.
 
     Args:
@@ -144,7 +146,7 @@ class ScreenshotDirective(SphinxDirective):
       except PlaywrightTimeoutError:
         raise RuntimeError('Timeout error occured at %s in executing\n%s' %
                            (url, interactions))
-      page.screenshot(path=filepath)
+      page.screenshot(path=filepath, full_page=full_page)
       if generate_pdf:
         page.emulate_media(media='screen')
         root, ext = os.path.splitext(filepath)
@@ -166,16 +168,20 @@ class ScreenshotDirective(SphinxDirective):
     os.makedirs(ss_dirpath, exist_ok=True)
 
     # Parse parameters
-    url = self.evaluate_substitutions(self.arguments[0])
+    raw_url = self.arguments[0]
+    url = self.evaluate_substitutions(raw_url)
     browser = self.options.get('browser',
                                self.env.config.screenshot_default_browser)
     height = self.options.get('height',
                               self.env.config.screenshot_default_height)
     width = self.options.get('width', self.env.config.screenshot_default_width)
-    color_scheme = self.options.get('color-scheme', 'null')
+    color_scheme = self.options.get(
+        'color-scheme', self.env.config.screenshot_default_color_scheme)
     caption_text = self.options.get('caption', '')
     figclass = self.options.get('figclass', '')
     pdf = 'pdf' in self.options
+    full_page = ('full-page' in self.options or
+                 self.env.config.screenshot_default_full_page)
     interactions = '\n'.join(self.content)
 
     if urlparse(url).scheme not in {'http', 'https'}:
@@ -183,10 +189,13 @@ class ScreenshotDirective(SphinxDirective):
           f'Invalid URL: {url}. Only HTTP/HTTPS URLs are supported.')
 
     # Generate filename based on hash of parameters
-    hash_input = "_".join(
-        [url, browser,
-         str(height),
-         str(width), color_scheme, interactions])
+    hash_input = "_".join([
+        raw_url,
+        browser,
+        str(height),
+        str(width), color_scheme, interactions,
+        str(full_page)
+    ])
     filename = hashlib.md5(hash_input.encode()).hexdigest() + '.png'
     filepath = os.path.join(ss_dirpath, filename)
 
@@ -194,7 +203,7 @@ class ScreenshotDirective(SphinxDirective):
     if not os.path.exists(filepath):
       fut = self.pool.submit(ScreenshotDirective.take_screenshot, url, browser,
                              width, height, filepath, screenshot_init_script,
-                             interactions, pdf, color_scheme)
+                             interactions, pdf, color_scheme, full_page)
       fut.result()
 
     # Create image and figure nodes
@@ -269,6 +278,16 @@ def setup(app: Sphinx) -> Meta:
       'chromium',
       'env',
       description="The default browser for screenshots")
+  app.add_config_value(
+      'screenshot_default_full_page',
+      False,
+      'env',
+      description="Whether to take full page screenshots")
+  app.add_config_value(
+      'screenshot_default_color_scheme',
+      'null',
+      'env',
+      description="The default color scheme for screenshots")
   app.add_config_value(
       'screenshot_apps', {},
       'env',
