@@ -43,7 +43,6 @@ You can describe the interaction that you want to have with the webpage before t
 
       document.querySelector('button').click();
 
-
 .. _browser:
 
 ``:browser:``
@@ -93,7 +92,7 @@ The custom context to use for taking the screenshot. See :ref:`screenshot_contex
 .. code-block:: rst
 
     .. screenshot:: http://www.example.com
-      :browser: logged-as-user
+      :context: logged-as-user
 
 .. _figclass:
 
@@ -175,7 +174,7 @@ Configuration
 ``screenshot_contexts``
 =======================
 
-You can use the `screenshot_contexts` configuration parameter and the `:context:` option to set up custom contexts for the screenshots.
+You can use the `screenshot_contexts` configuration parameter and the :ref:`:context: <context>` option to set up custom contexts for the screenshots.
 This can be useful for instance to perform authentication requests before accessing to protected pages.
 Note that you can use the `storage_state` parameter to load a previous context and avoid making authentication requests for every screenshot.
 
@@ -311,7 +310,7 @@ Local http server
 #################
 
 `sphinxcontrib-screenshot` supports URLs with the HTTP and HTTPS protocols.
-To take screenshots of local files and build the document while running a local server for them, you can use the NPM library [concurrently](https://www.npmjs.com/package/concurrently) in the following way:
+To take screenshots of local files and build the document while running a local server for them, you can use the NPM library `concurrently <https://www.npmjs.com/package/concurrently>`__ in the following way:
 
 .. code-block:: bash
    :caption: Build the document
@@ -339,7 +338,7 @@ Contributing
 License
 #######
 
-Apache 2.0; see [`LICENSE`](LICENSE) for details.
+Apache 2.0; see the `LICENSE file <https://github.com/tushuhei/sphinxcontrib-screenshot/blob/main/LICENSE>`__ for details.
 
 Disclaimer
 ##########
