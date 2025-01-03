@@ -83,6 +83,12 @@ or by setting the `screenshot_default_color_scheme` configuration parameter to o
   :color-scheme: dark
 ```
 
+You can choose the browser to use to take the screenshots with the `:browser:` option or the `screenshot_default_browser` configuration parameter.
+
+```rst
+.. screenshot:: http://www.example.com
+  :browser: firefox
+```
 
 ## Local WSGI application
 

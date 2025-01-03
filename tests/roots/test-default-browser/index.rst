@@ -1,0 +1,2 @@
+.. screenshot:: |example|
+   :browser: firefox
