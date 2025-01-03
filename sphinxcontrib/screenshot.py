@@ -190,8 +190,7 @@ class ScreenshotDirective(SphinxDirective):
 
     # Generate filename based on hash of parameters
     hash_input = "_".join([
-        raw_url,
-        browser,
+        raw_url, browser,
         str(height),
         str(width), color_scheme, interactions,
         str(full_page)
