@@ -40,6 +40,13 @@ You can also specify the screen size for a particular screenshot with `width` an
   :height: 960
 ```
 
+You can specify whether to take a full page screenshot with the `screenshot_default_full_page` configuration parameter and the `:full-page:` option.
+
+```rst
+.. screenshot:: http://www.example.com
+  :full-page:
+```
+
 You can include a caption for the screenshot's `figure` directive.
 
 ```rst
