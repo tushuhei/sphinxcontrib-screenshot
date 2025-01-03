@@ -165,7 +165,8 @@ class ScreenshotDirective(SphinxDirective):
     os.makedirs(ss_dirpath, exist_ok=True)
 
     # Parse parameters
-    url = self.evaluate_substitutions(self.arguments[0])
+    raw_url = self.arguments[0]
+    url = self.evaluate_substitutions(raw_url)
     height = self.options.get('height',
                               self.env.config.screenshot_default_height)
     width = self.options.get('width', self.env.config.screenshot_default_width)
@@ -180,7 +181,7 @@ class ScreenshotDirective(SphinxDirective):
           f'Invalid URL: {url}. Only HTTP/HTTPS URLs are supported.')
 
     # Generate filename based on hash of parameters
-    hash_input = f'{url}_{height}_{width}_{color_scheme}_{interactions}'
+    hash_input = f'{raw_url}_{height}_{width}_{color_scheme}_{interactions}'
     filename = hashlib.md5(hash_input.encode()).hexdigest() + '.png'
     filepath = os.path.join(ss_dirpath, filename)
 
