@@ -54,6 +54,12 @@ dev = [
     "yapf",
 ]
 
+doc = [
+    "myst-parser",
+    "shibuya",
+    "sphinx",
+]
+
 [tool.setuptools]
 packages = ["sphinxcontrib"]
 include-package-data = true
@@ -95,3 +101,9 @@ commands = [
     ["pre-commit", "run", "--all-files", "--show-diff-on-failure"],
 ]
 
+[tool.tox.env.doc]
+skip_install = true
+deps = ["-e .[doc]"]
+commands = [
+    ["sphinx-build", "--builder", "html", "doc", "build/sphinx/html"],
+]
