@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
-import sys
-
-sys.path.insert(0, str(pathlib.Path(__file__).parent.resolve()))
 
 extensions = ['sphinxcontrib.screenshot']
-screenshot_apps = {"example": "example_color_scheme_app:create_app"}
+
+root = pathlib.Path(__file__).parent.resolve().as_uri()
+rst_prolog = f".. |root| replace:: {root}"

@@ -202,9 +202,9 @@ class ScreenshotDirective(SphinxDirective):
     context = self.options.get('context', '')
     interactions = '\n'.join(self.content)
 
-    if urlparse(url).scheme not in {'http', 'https'}:
+    if urlparse(url).scheme not in {'http', 'https', 'file'}:
       raise RuntimeError(
-          f'Invalid URL: {url}. Only HTTP/HTTPS URLs are supported.')
+          f'Invalid URL: {url}. Only HTTP/HTTPS/FILE URLs are supported.')
 
     # Generate filename based on hash of parameters
     hash_input = "_".join([
