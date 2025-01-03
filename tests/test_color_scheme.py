@@ -19,8 +19,24 @@ from sphinx.testing.util import SphinxTestApp
 
 
 @pytest.mark.sphinx('html', testroot="color-schemes")
-def test_default(app: SphinxTestApp, status: StringIO, warning: StringIO,
-                 image_regression) -> None:
+def test_color_scheme_option(app: SphinxTestApp, status: StringIO,
+                             warning: StringIO, image_regression) -> None:
+  app.build()
+  out_html = app.outdir / "index.html"
+
+  soup = BeautifulSoup(out_html.read_text(), "html.parser")
+  imgs = soup.find_all('img')
+
+  img_path = app.outdir / imgs[0]['src']
+  with open(img_path, "rb") as fd:
+    image_regression.check(fd.read())
+
+
+@pytest.mark.sphinx('html', testroot="default-color-scheme")
+def test_default_color_scheme_config_parameter(app: SphinxTestApp,
+                                               status: StringIO,
+                                               warning: StringIO,
+                                               image_regression) -> None:
   app.build()
   out_html = app.outdir / "index.html"
 
