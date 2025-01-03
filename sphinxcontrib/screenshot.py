@@ -166,11 +166,13 @@ class ScreenshotDirective(SphinxDirective):
     os.makedirs(ss_dirpath, exist_ok=True)
 
     # Parse parameters
-    url = self.evaluate_substitutions(self.arguments[0])
+    raw_url = self.arguments[0]
+    url = self.evaluate_substitutions(raw_url)
     height = self.options.get('height',
                               self.env.config.screenshot_default_height)
     width = self.options.get('width', self.env.config.screenshot_default_width)
-    color_scheme = self.options.get('color-scheme', 'null')
+    color_scheme = self.options.get(
+        'color-scheme', self.env.config.screenshot_default_color_scheme)
     caption_text = self.options.get('caption', '')
     figclass = self.options.get('figclass', '')
     pdf = 'pdf' in self.options
@@ -184,7 +186,7 @@ class ScreenshotDirective(SphinxDirective):
 
     # Generate filename based on hash of parameters
     hash_input = "_".join([
-        url,
+        raw_url,
         str(height),
         str(width), color_scheme, interactions,
         str(full_page)
@@ -271,6 +273,11 @@ def setup(app: Sphinx) -> Meta:
       False,
       'env',
       description="Whether to take full page screenshots")
+  app.add_config_value(
+      'screenshot_default_color_scheme',
+      'null',
+      'env',
+      description="The default color scheme for screenshots")
   app.add_config_value(
       'screenshot_apps', {},
       'env',

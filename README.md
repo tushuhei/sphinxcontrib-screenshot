@@ -76,11 +76,13 @@ It also generates a PDF file when `pdf` option is given, which might be useful w
   :pdf:
 ```
 
-You can set the color scheme you prefer to display the page ('dark' or 'light'):
+You can set the color scheme you prefer to display the page ('dark' or 'light'),
+or by setting the `screenshot_default_color_scheme` configuration parameter to one of those values.
 ```rst
 .. screenshot:: http://www.example.com
   :color-scheme: dark
 ```
+
 
 ## Local WSGI application
 
