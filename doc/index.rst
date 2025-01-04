@@ -2,9 +2,8 @@
 sphinxcontrib-screenshot
 ========================
 
-A Sphinx extension to embed website screenshots.
 
-.. screenshot:: https://github.com/tushuhei/sphinxcontrib-screenshot
+A Sphinx extension to embed website screenshots.
 
 Install
 #######
@@ -35,13 +34,22 @@ Then use the `screenshot` directive in your Sphinx source file.
 Options
 #######
 
-You can describe the interaction that you want to have with the webpage before taking a screenshot in JavaScript.
+.. screenshot:: https://github.com/tushuhei/sphinxcontrib-screenshot
+    :align: right
+    :width: 400
+
+    An example of screenshot using the figure `:align:` and `:width:` options.
+
+`screenshot` inherits from the `figure directive <https://docutils.sourceforge.io/docs/ref/rst/directives.html#image>`__
+and supports all its options (`:align:`, `:alt:`, `:figclass:`, `:figwidth:`, `:height:`, `:loading:`, `:scale:`, `:target:`, `:width:`)
 
 .. code-block:: rst
 
-    .. screenshot:: http://www.example.com
+    .. screenshot:: https://github.com/tushuhei/sphinxcontrib-screenshot
+        :align: right
+        :width: 400
 
-      document.querySelector('button').click();
+        An example of screenshot using the figure `:align:` and `:width:` options.
 
 .. _browser:
 
@@ -54,21 +62,6 @@ You can choose the browser to use to take the screenshots with the :code:`:brows
 
     .. screenshot:: http://www.example.com
       :browser: firefox
-
-.. _caption:
-
-``:caption:``
-=============
-
-You can include a caption for the screenshot's :code:`figure` directive.
-
-.. code-block:: rst
-
-   .. screenshot:: http://www.example.com
-    :caption: This is a screenshot for www.example.com
-
-.. screenshot:: http://www.example.com
-  :caption: This is a screenshot for www.example.com
 
 .. _color-scheme:
 
@@ -93,18 +86,6 @@ The custom context to use for taking the screenshot. See :ref:`screenshot_contex
 
     .. screenshot:: http://www.example.com
       :context: logged-as-user
-
-.. _figclass:
-
-``:figclass:``
-==============
-
-Use :code:`figclass` option if you want to specify a class name to the image.
-
-.. code-block:: rst
-
-    .. screenshot:: http://www.example.com
-      :figclass: foo
 
 .. _full-page:
 
@@ -132,6 +113,19 @@ You can pass additional headers to the requests, for instance to customize the d
         Authorization Bearer my-super-secret-token
         Accept-Language fr-FR,fr
 
+.. _interactions:
+
+``:interactions:``
+==================
+
+You can describe the interaction that you want to have with the webpage before taking a screenshot in JavaScript.
+
+.. code-block:: rst
+
+    .. screenshot:: http://www.example.com
+      :interactions:
+        document.querySelector('button').click();
+
 .. _pdf:
 
 ``:pdf:``
@@ -148,23 +142,23 @@ It also generates a PDF file when :code:`pdf` option is given, which might be us
   :pdf:
 
 
-.. _width:
-.. _height:
+.. _viewport_width:
+.. _viewport_height:
 
-``:width:`` and ``:height:``
-============================
+``:viewport-width:`` and ``:viewport-height:``
+==============================================
 
-You can specify the screen size for a particular screenshot with :code:`width` and :code:`height` parameters.
+You can specify the screen size for a particular screenshot with :code:`viewport-width` and :code:`viewport-height` parameters.
 
 .. code-block:: rst
 
     .. screenshot:: http://www.example.com
-      :width: 800
-      :height: 600
+      :viewport-width: 800
+      :viewport-height: 600
 
 .. screenshot:: http://www.example.com
-  :width: 800
-  :height: 600
+  :viewport-width: 800
+  :viewport-height: 600
 
 Configuration
 #############
@@ -257,18 +251,18 @@ Those are the default headers to be used when taking screenshots. They can be ov
         "Accept-Language": "fr-FR,fr",
     }
 
-.. _screenshot_default_width:
-.. _screenshot_default_height:
+.. _screenshot_default_viewport_width:
+.. _screenshot_default_viewport_height:
 
-``screenshot_default_width`` and ``screenshot_default_height``
-==============================================================
+``screenshot_default_viewport_width`` and ``screenshot_default_viewport_height``
+================================================================================
 
-You can define the default size of your screenshots in `conf.py`, those values will be used by default when :ref:`:width: <width>` and :ref:`:height: <height>` are not set:
+You can define the default size of your screenshots in `conf.py`, those values will be used by default when :ref:`:viewport-width: <viewport_width>` and :ref:`:viewport-height: <viewport_height>` are not set:
 
 .. code-block:: python
 
-    screenshot_default_width = 1920
-    screenshot_default_height = 1200
+    screenshot_default_viewport_width = 1920
+    screenshot_default_viewport_height = 1200
 
 Local WSGI application
 ######################
