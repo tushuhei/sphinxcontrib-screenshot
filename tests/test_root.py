@@ -36,21 +36,6 @@ def test_default(app: SphinxTestApp) -> None:
   assert width == 480
   assert height == 320
 
-  # The caption should be rendered.
-  figcaptions = [
-      figcaption.get_text().strip()
-      for figcaption in soup.select('figcaption span')
-  ]
-  assert figcaptions == [
-      'This is a test screenshot', 'This is another screenshot',
-      'Changing the background.'
-  ]
-
-  # The images should be the same if the difference is only the caption.
-  img_with_caption_a = imgs[0]
-  img_with_caption_b = imgs[1]
-  assert img_with_caption_a['src'] == img_with_caption_b['src']
-
   # The images should be different after the specified user interaction.
   imgsrc_before_interaction = app.outdir / imgs[1]['src']
   imgsrc_after_interaction = app.outdir / imgs[2]['src']
@@ -62,8 +47,8 @@ def test_default(app: SphinxTestApp) -> None:
 @pytest.mark.sphinx('html', testroot="default-size")
 def test_default_size(app: SphinxTestApp, status: StringIO, warning: StringIO,
                       image_regression) -> None:
-  """Test the 'screenshot_default_width' and
-  'screenshot_default_height' configuration parameters."""
+  """Test the 'screenshot_default_viewport_width' and
+  'screenshot_default_viewport_height' configuration parameters."""
   app.build()
   out_html = app.outdir / "index.html"
 

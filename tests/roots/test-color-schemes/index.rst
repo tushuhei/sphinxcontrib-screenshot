@@ -1,4 +1,4 @@
 .. screenshot:: |example|
-   :width: 800
-   :height: 600
+   :viewport-width: 800
+   :viewport-height: 600
    :color-scheme: dark

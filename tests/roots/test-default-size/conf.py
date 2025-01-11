@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 extensions = ['sphinxcontrib.screenshot']
-screenshot_default_width = 1920
-screenshot_default_height = 1200
+screenshot_default_viewport_width = 1920
+screenshot_default_viewport_height = 1200

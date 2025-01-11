@@ -5,8 +5,8 @@ A Sphinx extension to embed website screenshots.
 ```rst
 .. screenshot:: http://www.example.com
   :browser: chromium
-  :width: 1280
-  :height: 960
+  :viewport-width: 1280
+  :viewport-height: 960
   :color-scheme: dark
 ```
 
