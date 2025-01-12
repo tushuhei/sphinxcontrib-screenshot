@@ -21,7 +21,10 @@ def create_app(sphinx_app):
 
     return [
         b"<html>" + b'<body style="' + style + b'">' +
-        b"<script>document.body.innerText = Intl.DateTimeFormat().resolvedOptions().timeZone;</script>"
+        b"<script>" +
+        b"document.body.innerText = " +
+        b"Intl.DateTimeFormat().resolvedOptions().timeZone;" +
+        b"</script>" +
         b"</body>" + b"</html>"
     ]
 
