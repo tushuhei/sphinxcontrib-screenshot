@@ -19,7 +19,7 @@ from sphinx.testing.util import SphinxTestApp
 
 
 @pytest.mark.sphinx('html', testroot="timezone")
-def test_headers(app: SphinxTestApp, status: StringIO, warning: StringIO,
+def test_timezone(app: SphinxTestApp, status: StringIO, warning: StringIO,
                  image_regression) -> None:
   app.build()
   out_html = app.outdir / "index.html"
@@ -34,7 +34,7 @@ def test_headers(app: SphinxTestApp, status: StringIO, warning: StringIO,
 
 
 @pytest.mark.sphinx('html', testroot="default-timezone")
-def test_default_headers(app: SphinxTestApp, status: StringIO,
+def test_default_timezone(app: SphinxTestApp, status: StringIO,
                          warning: StringIO, image_regression) -> None:
   app.build()
   out_html = app.outdir / "index.html"
