@@ -20,11 +20,9 @@ def create_app(sphinx_app):
              b"margin: 0; " + b"font-smooth: never; " + b"line-height: 1.15;")
 
     return [
-        b"<html>" + b'<body style="' + style + b'">' +
-        b"<script>" +
+        b"<html>" + b'<body style="' + style + b'">' + b"<script>" +
         b"document.body.innerText = " +
-        b"Intl.DateTimeFormat().resolvedOptions().timeZone;" +
-        b"</script>" +
+        b"Intl.DateTimeFormat().resolvedOptions().timeZone;" + b"</script>" +
         b"</body>" + b"</html>"
     ]
 
