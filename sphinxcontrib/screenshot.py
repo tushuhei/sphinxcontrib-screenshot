@@ -40,6 +40,9 @@ Meta = typing.TypedDict('Meta', {
     'parallel_write_safe': bool
 })
 
+ContextBuilder = typing.Optional[typing.Callable[[Browser, str, str],
+                                                 BrowserContext]]
+
 
 class ScreenshotDirective(SphinxDirective, Figure):
   """Sphinx Screenshot Dirctive.
@@ -93,21 +96,24 @@ class ScreenshotDirective(SphinxDirective, Figure):
       'full-page': directives.flag,
       'context': str,
       'headers': directives.unchanged,
+      'locale': str,
+      'timezone': str,
   }
   pool = ThreadPoolExecutor()
 
   @staticmethod
-  def take_screenshot(
-      url: str, browser_name: str, viewport_width: int, viewport_height: int,
-      filepath: str, init_script: str, interactions: str, generate_pdf: bool,
-      color_scheme: ColorScheme, full_page: bool,
-      context_builder: typing.Optional[typing.Callable[[Browser, str, str],
-                                                       BrowserContext]],
-      headers: dict):
+  def take_screenshot(url: str, browser_name: str, viewport_width: int,
+                      viewport_height: int, filepath: str, init_script: str,
+                      interactions: str, generate_pdf: bool,
+                      color_scheme: ColorScheme, full_page: bool,
+                      context_builder: ContextBuilder, headers: dict,
+                      locale: typing.Optional[str],
+                      timezone: typing.Optional[str]):
     """Takes a screenshot with Playwright's Chromium browser.
 
     Args:
       url (str): The HTTP/HTTPS URL of the webpage to screenshot.
+      browser_name (str): Browser to use ('chromium', 'firefox' or 'webkit').
       viewport_width (int): The width of the screenshot in pixels.
       viewport_height (int): The height of the screenshot in pixels.
       filepath (str): The path to save the screenshot to.
@@ -118,10 +124,14 @@ class ScreenshotDirective(SphinxDirective, Figure):
         after the page was loaded.
       generate_pdf (bool): Generate a PDF file along with the screenshot.
       color_scheme (str): The preferred color scheme. Can be 'light' or 'dark'.
+      full_page (bool): Take a full page screenshot.
       context: A method to build the Playwright context.
+      headers (dict): Custom request header.
+      locale (str, optional): User locale for the request.
+      timezone (str, optional): User timezone for the request.
     """
     with sync_playwright() as playwright:
-      browser = getattr(playwright, browser_name).launch()
+      browser: Browser = getattr(playwright, browser_name).launch()
 
       if context_builder:
         try:
@@ -131,7 +141,8 @@ class ScreenshotDirective(SphinxDirective, Figure):
               'Timeout error occured at %s in executing py init script %s' %
               (url, context_builder.__name__))
       else:
-        context = browser.new_context(color_scheme=color_scheme)
+        context = browser.new_context(
+            color_scheme=color_scheme, locale=locale, timezone_id=timezone)
 
       page = context.new_page()
       page.set_default_timeout(10000)
@@ -193,6 +204,10 @@ class ScreenshotDirective(SphinxDirective, Figure):
     pdf = 'pdf' in self.options
     full_page = ('full-page' in self.options or
                  self.env.config.screenshot_default_full_page)
+    locale = self.options.get('locale',
+                              self.env.config.screenshot_default_locale)
+    timezone = self.options.get('timezone',
+                                self.env.config.screenshot_default_timezone)
     context = self.options.get('context', '')
     headers = self.options.get('headers', '')
 
@@ -228,7 +243,7 @@ class ScreenshotDirective(SphinxDirective, Figure):
                              viewport_width, viewport_height, filepath,
                              screenshot_init_script, interactions, pdf,
                              color_scheme, full_page, context_builder,
-                             request_headers)
+                             request_headers, locale, timezone)
       fut.result()
 
     # Create image and figure nodes
@@ -311,6 +326,16 @@ def setup(app: Sphinx) -> Meta:
       'screenshot_default_headers', {},
       'env',
       description="The default headers to pass in requests")
+  app.add_config_value(
+      'screenshot_default_locale',
+      None,
+      'env',
+      description="The default locale in requests")
+  app.add_config_value(
+      'screenshot_default_timezone',
+      None,
+      'env',
+      description="The default timezone in requests")
   app.add_config_value(
       'screenshot_apps', {},
       'env',
