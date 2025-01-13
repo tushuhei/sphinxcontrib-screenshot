@@ -34,8 +34,8 @@ def test_locale(app: SphinxTestApp, status: StringIO, warning: StringIO,
 
 
 @pytest.mark.sphinx('html', testroot="default-locale")
-def test_default_locale(app: SphinxTestApp, status: StringIO, warning: StringIO,
-                        image_regression) -> None:
+def test_default_locale(app: SphinxTestApp, status: StringIO,
+                        warning: StringIO, image_regression) -> None:
   app.build()
   out_html = app.outdir / "index.html"
 
