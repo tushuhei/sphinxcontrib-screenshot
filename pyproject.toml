@@ -69,6 +69,7 @@ include-package-data = true
 
 [tool.yapf]
 based_on_style = "yapf"
+column_limit = 79
 
 [tool.flake8]
 indent-size = 2
