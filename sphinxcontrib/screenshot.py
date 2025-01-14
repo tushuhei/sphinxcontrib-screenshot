@@ -184,6 +184,7 @@ class ScreenshotDirective(SphinxDirective, Figure):
 
   def run(self) -> typing.Sequence[nodes.Node]:
     screenshot_init_script: str = self.env.config.screenshot_init_script or ''
+    docdir = os.path.dirname(self.env.doc2path(self.env.docname))
 
     # Ensure the screenshots directory exists
     ss_dirpath = os.path.join(self.env.app.outdir, '_static', 'screenshots')
@@ -192,6 +193,17 @@ class ScreenshotDirective(SphinxDirective, Figure):
     # Parse parameters
     raw_url = self.arguments[0]
     url = self.evaluate_substitutions(raw_url)
+
+    # Check if URL is a local file path
+    if urlparse(url).scheme == '':
+      if os.path.isabs(url):
+        # Absolute path, consider it relative to the doc root
+        url = os.path.join(self.env.srcdir, url)
+      else:
+        # Relative path, consider it relative to the current doc
+        url = os.path.join(docdir, url)
+      url = "file://" + url
+
     interactions = self.options.get('interactions', '')
     browser = self.options.get('browser',
                                self.env.config.screenshot_default_browser)
@@ -217,7 +229,7 @@ class ScreenshotDirective(SphinxDirective, Figure):
         name, value = header.split(" ", 1)
         request_headers[name] = value
 
-    if urlparse(url).scheme not in {'http', 'https'}:
+    if urlparse(url).scheme not in {'http', 'https', 'file'}:
       raise RuntimeError(
           f'Invalid URL: {url}. Only HTTP/HTTPS URLs are supported.')
 
@@ -247,7 +259,6 @@ class ScreenshotDirective(SphinxDirective, Figure):
       fut.result()
 
     # Create image and figure nodes
-    docdir = os.path.dirname(self.env.doc2path(self.env.docname))
     rel_ss_dirpath = os.path.relpath(ss_dirpath, start=docdir)
     rel_filepath = os.path.join(rel_ss_dirpath, filename).replace(os.sep, '/')
 
