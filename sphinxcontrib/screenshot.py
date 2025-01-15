@@ -194,19 +194,22 @@ class ScreenshotDirective(SphinxDirective, Figure):
     raw_path = self.arguments[0]
     url_or_filepath = self.evaluate_substitutions(raw_path)
 
-    # Check if the parameter is a local file path.
-    # This aims to provide similar experience as the figure:: directive.
+    # Check if the path is a local file path.
     if urlparse(url_or_filepath).scheme == '':
+      # root-relative path
       if url_or_filepath.startswith('/'):
-        url_or_filepath = os.path.join(self.env.srcdir, url_or_filepath.lstrip('/'))
+        url_or_filepath = os.path.join(self.env.srcdir,
+                                       url_or_filepath.lstrip('/'))
+      # document-relative path
       else:
         url_or_filepath = os.path.join(docdir, url_or_filepath)
       url_or_filepath = "file://" + url_or_filepath
 
     if urlparse(url_or_filepath).scheme not in {'http', 'https', 'file'}:
       raise RuntimeError(
-          f'Invalid URL: {url_or_filepath}. Only HTTP/HTTPS/FILE URLs are supported.'
-      )
+          f'Invalid URL: {url_or_filepath}. ' +
+          'Only HTTP/HTTPS/FILE URLs or root/document-relative file paths ' +
+          'are supported.')
 
     interactions = self.options.get('interactions', '')
     browser = self.options.get('browser',
