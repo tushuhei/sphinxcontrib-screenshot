@@ -194,15 +194,19 @@ class ScreenshotDirective(SphinxDirective, Figure):
     raw_path = self.arguments[0]
     url_or_filepath = self.evaluate_substitutions(raw_path)
 
-    # Check if URL is a local file path
+    # Check if the parameter is a local file path.
+    # This aims to provide similar experience as the figure:: directive.
     if urlparse(url_or_filepath).scheme == '':
-      if os.path.isabs(url_or_filepath):
-        # Absolute path, consider it relative to the doc root
-        url_or_filepath = os.path.join(self.env.srcdir, url_or_filepath[1:])
+      if url_or_filepath.startswith('/'):
+        url_or_filepath = os.path.join(self.env.srcdir, url_or_filepath.lstrip('/'))
       else:
-        # Relative path, consider it relative to the current doc
         url_or_filepath = os.path.join(docdir, url_or_filepath)
       url_or_filepath = "file://" + url_or_filepath
+
+    if urlparse(url_or_filepath).scheme not in {'http', 'https', 'file'}:
+      raise RuntimeError(
+          f'Invalid URL: {url_or_filepath}. Only HTTP/HTTPS/FILE URLs are supported.'
+      )
 
     interactions = self.options.get('interactions', '')
     browser = self.options.get('browser',
@@ -228,11 +232,6 @@ class ScreenshotDirective(SphinxDirective, Figure):
       for header in headers.strip().split("\n"):
         name, value = header.split(" ", 1)
         request_headers[name] = value
-
-    if urlparse(url_or_filepath).scheme not in {'http', 'https', 'file'}:
-      raise RuntimeError(
-          f'Invalid URL: {url_or_filepath}. Only HTTP/HTTPS/FILE URLs are supported.'
-      )
 
     # Generate filename based on hash of parameters
     hash_input = "_".join([
