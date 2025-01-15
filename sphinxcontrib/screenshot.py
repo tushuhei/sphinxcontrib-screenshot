@@ -203,7 +203,7 @@ class ScreenshotDirective(SphinxDirective, Figure):
       # document-relative path
       else:
         url_or_filepath = os.path.join(docdir, url_or_filepath)
-      url_or_filepath = "file://" + url_or_filepath
+      url_or_filepath = "file://" + os.path.normpath(url_or_filepath)
 
     if urlparse(url_or_filepath).scheme not in {'http', 'https', 'file'}:
       raise RuntimeError(
