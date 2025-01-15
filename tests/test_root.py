@@ -23,8 +23,7 @@ from sphinx.testing.util import SphinxTestApp
 @pytest.mark.sphinx('html', testroot='root')
 def test_default(app: SphinxTestApp) -> None:
   app.build()
-  out_html = app.outdir / "index.html"
-  soup = BeautifulSoup(out_html.read_text(), "html.parser")
+  soup = BeautifulSoup((app.outdir / "index.html").read_text(), "html.parser")
 
   # Every screenshot directive should become an image.
   imgs = soup.find_all('img')
@@ -42,6 +41,20 @@ def test_default(app: SphinxTestApp) -> None:
   assert imgsrc_before_interaction != imgsrc_after_interaction
   assert list(Image.open(imgsrc_before_interaction).getdata()) != list(
       Image.open(imgsrc_after_interaction).getdata())
+
+  soup = BeautifulSoup((app.outdir / "sections" / "index.html").read_text(),
+                       "html.parser")
+
+  # Every screenshot directive should become an image.
+  imgs = soup.find_all('img')
+  assert len(list(imgs)) == 2
+
+  # The images should be the same.
+  imgsrc_relative = app.outdir / "sections" / imgs[0]['src']
+  imgsrc_absolute = app.outdir / "sections" / imgs[1]['src']
+  assert imgsrc_relative != imgsrc_absolute
+  assert list(Image.open(imgsrc_relative).getdata()) == list(
+      Image.open(imgsrc_absolute).getdata())
 
 
 @pytest.mark.sphinx('html', testroot="default-size")
