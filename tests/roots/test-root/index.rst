@@ -17,3 +17,6 @@
     document.body.style.background = 'red';
 
   Changing the background.
+
+.. toctree::
+  sections/index

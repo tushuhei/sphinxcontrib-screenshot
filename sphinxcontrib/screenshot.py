@@ -191,18 +191,18 @@ class ScreenshotDirective(SphinxDirective, Figure):
     os.makedirs(ss_dirpath, exist_ok=True)
 
     # Parse parameters
-    raw_url = self.arguments[0]
-    url = self.evaluate_substitutions(raw_url)
+    raw_path = self.arguments[0]
+    url_or_filepath = self.evaluate_substitutions(raw_path)
 
     # Check if URL is a local file path
-    if urlparse(url).scheme == '':
-      if os.path.isabs(url):
+    if urlparse(url_or_filepath).scheme == '':
+      if os.path.isabs(url_or_filepath):
         # Absolute path, consider it relative to the doc root
-        url = os.path.join(self.env.srcdir, url)
+        url_or_filepath = os.path.join(self.env.srcdir, url_or_filepath[1:])
       else:
         # Relative path, consider it relative to the current doc
-        url = os.path.join(docdir, url)
-      url = "file://" + url
+        url_or_filepath = os.path.join(docdir, url_or_filepath)
+      url_or_filepath = "file://" + url_or_filepath
 
     interactions = self.options.get('interactions', '')
     browser = self.options.get('browser',
@@ -229,13 +229,14 @@ class ScreenshotDirective(SphinxDirective, Figure):
         name, value = header.split(" ", 1)
         request_headers[name] = value
 
-    if urlparse(url).scheme not in {'http', 'https', 'file'}:
+    if urlparse(url_or_filepath).scheme not in {'http', 'https', 'file'}:
       raise RuntimeError(
-          f'Invalid URL: {url}. Only HTTP/HTTPS URLs are supported.')
+          f'Invalid URL: {url_or_filepath}. Only HTTP/HTTPS/FILE URLs are supported.'
+      )
 
     # Generate filename based on hash of parameters
     hash_input = "_".join([
-        raw_url, browser,
+        raw_path, browser,
         str(viewport_height),
         str(viewport_width), color_scheme, context, interactions,
         str(full_page)
@@ -251,11 +252,12 @@ class ScreenshotDirective(SphinxDirective, Figure):
 
     # Check if the file already exists. If not, take a screenshot
     if not os.path.exists(filepath):
-      fut = self.pool.submit(ScreenshotDirective.take_screenshot, url, browser,
-                             viewport_width, viewport_height, filepath,
-                             screenshot_init_script, interactions, pdf,
-                             color_scheme, full_page, context_builder,
-                             request_headers, locale, timezone)
+      fut = self.pool.submit(ScreenshotDirective.take_screenshot,
+                             url_or_filepath, browser, viewport_width,
+                             viewport_height, filepath, screenshot_init_script,
+                             interactions, pdf, color_scheme, full_page,
+                             context_builder, request_headers, locale,
+                             timezone)
       fut.result()
 
     # Create image and figure nodes
