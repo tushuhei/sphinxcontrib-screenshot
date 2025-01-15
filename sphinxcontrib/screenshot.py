@@ -24,7 +24,7 @@ from urllib.parse import urlparse
 
 from docutils import nodes
 from docutils.parsers.rst import directives
-from docutils.statemachine import ViewList
+from docutils.parsers.rst.directives.images import Figure
 from playwright._impl._helper import ColorScheme
 from playwright.sync_api import Browser, BrowserContext
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
@@ -40,8 +40,11 @@ Meta = typing.TypedDict('Meta', {
     'parallel_write_safe': bool
 })
 
+ContextBuilder = typing.Optional[typing.Callable[[Browser, str, str],
+                                                 BrowserContext]]
 
-class ScreenshotDirective(SphinxDirective):
+
+class ScreenshotDirective(SphinxDirective, Figure):
   """Sphinx Screenshot Dirctive.
 
   This directive embeds a screenshot of a webpage.
@@ -54,20 +57,13 @@ class ScreenshotDirective(SphinxDirective):
   .. screenshot:: http://www.example.com
   ```
 
-  You can also specify the screen size for the screenshot with `width` and
-  `height` parameters in pixel.
+  You can also specify the screen size for the screenshot with
+  `viewport-width` and `viewport-height` parameters in pixel.
 
   ```rst
   .. screenshot:: http://www.example.com
-    :width: 1280
-    :height: 960
-  ```
-
-  You can include a caption for the screenshot's `figure` directive.
-
-  ```rst
-  .. screenshot:: http://www.example.com
-    :caption: This is a screenshot for www.example.com
+    :viewport-width: 1280
+    :viewport-height: 960
   ```
 
   You can describe the interaction that you want to have with the webpage
@@ -77,13 +73,6 @@ class ScreenshotDirective(SphinxDirective):
   .. screenshot:: http://www.example.com
 
     document.querySelector('button').click();
-  ```
-
-  Use `figclass` option if you want to specify a class name to the image.
-
-  ```rst
-  .. screenshot:: http://www.example.com
-    :figclass: foo
   ```
 
   It also generates a PDF file when `pdf` option is given, which might be
@@ -96,35 +85,37 @@ class ScreenshotDirective(SphinxDirective):
   """
 
   required_arguments = 1  # URL
-  has_content = True
   option_spec = {
+      **Figure.option_spec,
       'browser': str,
-      'height': directives.positive_int,
-      'width': directives.positive_int,
-      'caption': directives.unchanged,
-      'figclass': directives.unchanged,
+      'viewport-height': directives.positive_int,
+      'viewport-width': directives.positive_int,
+      'interactions': str,
       'pdf': directives.flag,
       'color-scheme': str,
       'full-page': directives.flag,
       'context': str,
       'headers': directives.unchanged,
+      'locale': str,
+      'timezone': str,
   }
   pool = ThreadPoolExecutor()
 
   @staticmethod
-  def take_screenshot(
-      url: str, browser_name: str, width: int, height: int, filepath: str,
-      init_script: str, interactions: str, generate_pdf: bool,
-      color_scheme: ColorScheme, full_page: bool,
-      context_builder: typing.Optional[typing.Callable[[Browser, str, str],
-                                                       BrowserContext]],
-      headers: dict):
+  def take_screenshot(url: str, browser_name: str, viewport_width: int,
+                      viewport_height: int, filepath: str, init_script: str,
+                      interactions: str, generate_pdf: bool,
+                      color_scheme: ColorScheme, full_page: bool,
+                      context_builder: ContextBuilder, headers: dict,
+                      locale: typing.Optional[str],
+                      timezone: typing.Optional[str]):
     """Takes a screenshot with Playwright's Chromium browser.
 
     Args:
       url (str): The HTTP/HTTPS URL of the webpage to screenshot.
-      width (int): The width of the screenshot in pixels.
-      height (int): The height of the screenshot in pixels.
+      browser_name (str): Browser to use ('chromium', 'firefox' or 'webkit').
+      viewport_width (int): The width of the screenshot in pixels.
+      viewport_height (int): The height of the screenshot in pixels.
       filepath (str): The path to save the screenshot to.
       init_script (str): JavaScript code to be evaluated after the document
         was created but before any of its scripts were run. See more details at
@@ -133,10 +124,14 @@ class ScreenshotDirective(SphinxDirective):
         after the page was loaded.
       generate_pdf (bool): Generate a PDF file along with the screenshot.
       color_scheme (str): The preferred color scheme. Can be 'light' or 'dark'.
+      full_page (bool): Take a full page screenshot.
       context: A method to build the Playwright context.
+      headers (dict): Custom request header.
+      locale (str, optional): User locale for the request.
+      timezone (str, optional): User timezone for the request.
     """
     with sync_playwright() as playwright:
-      browser = getattr(playwright, browser_name).launch()
+      browser: Browser = getattr(playwright, browser_name).launch()
 
       if context_builder:
         try:
@@ -146,11 +141,15 @@ class ScreenshotDirective(SphinxDirective):
               'Timeout error occured at %s in executing py init script %s' %
               (url, context_builder.__name__))
       else:
-        context = browser.new_context(color_scheme=color_scheme)
+        context = browser.new_context(
+            color_scheme=color_scheme, locale=locale, timezone_id=timezone)
 
       page = context.new_page()
       page.set_default_timeout(10000)
-      page.set_viewport_size({'width': width, 'height': height})
+      page.set_viewport_size({
+          'width': viewport_width,
+          'height': viewport_height
+      })
 
       try:
         if init_script:
@@ -170,7 +169,10 @@ class ScreenshotDirective(SphinxDirective):
       if generate_pdf:
         page.emulate_media(media='screen')
         root, ext = os.path.splitext(filepath)
-        page.pdf(width=f'{width}px', height=f'{height}px', path=root + '.pdf')
+        page.pdf(
+            width=f'{viewport_width}px',
+            height=f'{viewport_height}px',
+            path=root + '.pdf')
       page.close()
       browser.close()
 
@@ -180,7 +182,7 @@ class ScreenshotDirective(SphinxDirective):
       text = text.replace(f"|{key}|", value.astext())
     return text
 
-  def run(self) -> typing.List[nodes.Node]:
+  def run(self) -> typing.Sequence[nodes.Node]:
     screenshot_init_script: str = self.env.config.screenshot_init_script or ''
 
     # Ensure the screenshots directory exists
@@ -190,20 +192,23 @@ class ScreenshotDirective(SphinxDirective):
     # Parse parameters
     raw_url = self.arguments[0]
     url = self.evaluate_substitutions(raw_url)
+    interactions = self.options.get('interactions', '')
     browser = self.options.get('browser',
                                self.env.config.screenshot_default_browser)
-    height = self.options.get('height',
-                              self.env.config.screenshot_default_height)
-    width = self.options.get('width', self.env.config.screenshot_default_width)
+    viewport_height = self.options.get(
+        'viewport-height', self.env.config.screenshot_default_viewport_height)
+    viewport_width = self.options.get(
+        'viewport-width', self.env.config.screenshot_default_viewport_width)
     color_scheme = self.options.get(
         'color-scheme', self.env.config.screenshot_default_color_scheme)
-    caption_text = self.options.get('caption', '')
-    figclass = self.options.get('figclass', '')
     pdf = 'pdf' in self.options
     full_page = ('full-page' in self.options or
                  self.env.config.screenshot_default_full_page)
+    locale = self.options.get('locale',
+                              self.env.config.screenshot_default_locale)
+    timezone = self.options.get('timezone',
+                                self.env.config.screenshot_default_timezone)
     context = self.options.get('context', '')
-    interactions = '\n'.join(self.content)
     headers = self.options.get('headers', '')
 
     request_headers = {**self.env.config.screenshot_default_headers}
@@ -219,8 +224,8 @@ class ScreenshotDirective(SphinxDirective):
     # Generate filename based on hash of parameters
     hash_input = "_".join([
         raw_url, browser,
-        str(height),
-        str(width), color_scheme, context, interactions,
+        str(viewport_height),
+        str(viewport_width), color_scheme, context, interactions,
         str(full_page)
     ])
     filename = hashlib.md5(hash_input.encode()).hexdigest() + '.png'
@@ -235,29 +240,19 @@ class ScreenshotDirective(SphinxDirective):
     # Check if the file already exists. If not, take a screenshot
     if not os.path.exists(filepath):
       fut = self.pool.submit(ScreenshotDirective.take_screenshot, url, browser,
-                             width, height, filepath, screenshot_init_script,
-                             interactions, pdf, color_scheme, full_page,
-                             context_builder, request_headers)
+                             viewport_width, viewport_height, filepath,
+                             screenshot_init_script, interactions, pdf,
+                             color_scheme, full_page, context_builder,
+                             request_headers, locale, timezone)
       fut.result()
 
     # Create image and figure nodes
     docdir = os.path.dirname(self.env.doc2path(self.env.docname))
     rel_ss_dirpath = os.path.relpath(ss_dirpath, start=docdir)
     rel_filepath = os.path.join(rel_ss_dirpath, filename).replace(os.sep, '/')
-    image_node = nodes.image(uri=rel_filepath)
-    figure_node = nodes.figure('', image_node)
 
-    if figclass:
-      figure_node['classes'].append(figclass)
-
-    if caption_text:
-      parsed = nodes.Element()
-      self.state.nested_parse(
-          ViewList([caption_text], source=''), self.content_offset, parsed)
-      figure_node += nodes.caption(parsed[0].source or '', '',
-                                   *parsed[0].children)
-
-    return [figure_node]
+    self.arguments[0] = rel_filepath
+    return super().run()
 
 
 app_threads = {}
@@ -298,12 +293,12 @@ def setup(app: Sphinx) -> Meta:
   app.add_directive('screenshot', ScreenshotDirective)
   app.add_config_value('screenshot_init_script', '', 'env')
   app.add_config_value(
-      'screenshot_default_width',
+      'screenshot_default_viewport_width',
       1280,
       'env',
       description="The default width for screenshots")
   app.add_config_value(
-      'screenshot_default_height',
+      'screenshot_default_viewport_height',
       960,
       'env',
       description="The default height for screenshots")
@@ -331,6 +326,16 @@ def setup(app: Sphinx) -> Meta:
       'screenshot_default_headers', {},
       'env',
       description="The default headers to pass in requests")
+  app.add_config_value(
+      'screenshot_default_locale',
+      None,
+      'env',
+      description="The default locale in requests")
+  app.add_config_value(
+      'screenshot_default_timezone',
+      None,
+      'env',
+      description="The default timezone in requests")
   app.add_config_value(
       'screenshot_apps', {},
       'env',

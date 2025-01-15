@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,18 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pathlib
+import sys
 
-import pytest
-from bs4 import BeautifulSoup
-from sphinx.testing.util import SphinxTestApp
+sys.path.insert(0, str(pathlib.Path(__file__).parent.resolve()))
 
-
-@pytest.mark.sphinx('html', testroot='figclass')
-def test_default(app: SphinxTestApp) -> None:
-  app.build()
-  out_html = app.outdir / "index.html"
-  soup = BeautifulSoup(out_html.read_text(), "html.parser")
-
-  # The figure node should have the class name specified.
-  figure = soup.select_one('figure.round')
-  assert figure is not None
+extensions = ['sphinxcontrib.screenshot']
+screenshot_apps = {"example": "example_locale_app:create_app"}
+screenshot_default_locale = 'fr-FR'

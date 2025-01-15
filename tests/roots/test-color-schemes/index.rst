@@ -1,4 +1,4 @@
-.. screenshot:: |root|/index.html
-   :width: 800
-   :height: 600
+.. screenshot:: |example|
+   :viewport-width: 800
+   :viewport-height: 600
    :color-scheme: dark
