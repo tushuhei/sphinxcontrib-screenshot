@@ -94,6 +94,7 @@ class ScreenshotDirective(SphinxDirective, Figure):
       'pdf': directives.flag,
       'color-scheme': str,
       'full-page': directives.flag,
+      'mobile': directives.flag,
       'context': str,
       'headers': directives.unchanged,
       'locale': str,
@@ -105,7 +106,7 @@ class ScreenshotDirective(SphinxDirective, Figure):
   def take_screenshot(url: str, browser_name: str, viewport_width: int,
                       viewport_height: int, filepath: str, init_script: str,
                       interactions: str, generate_pdf: bool,
-                      color_scheme: ColorScheme, full_page: bool,
+                      color_scheme: ColorScheme, full_page: bool, mobile: bool,
                       context_builder: ContextBuilder, headers: dict,
                       locale: typing.Optional[str],
                       timezone: typing.Optional[str]):
@@ -125,11 +126,13 @@ class ScreenshotDirective(SphinxDirective, Figure):
       generate_pdf (bool): Generate a PDF file along with the screenshot.
       color_scheme (str): The preferred color scheme. Can be 'light' or 'dark'.
       full_page (bool): Take a full page screenshot.
+      mobile (book): Take a screenshot for a mobile device.
       context: A method to build the Playwright context.
       headers (dict): Custom request header.
       locale (str, optional): User locale for the request.
       timezone (str, optional): User timezone for the request.
     """
+    print('mobile!!! >>> ', mobile)
     with sync_playwright() as playwright:
       browser: Browser = getattr(playwright, browser_name).launch()
 
@@ -142,7 +145,10 @@ class ScreenshotDirective(SphinxDirective, Figure):
               (url, context_builder.__name__))
       else:
         context = browser.new_context(
-            color_scheme=color_scheme, locale=locale, timezone_id=timezone)
+            color_scheme=color_scheme,
+            locale=locale,
+            timezone_id=timezone,
+            is_mobile=mobile)
 
       page = context.new_page()
       page.set_default_timeout(10000)
@@ -223,6 +229,8 @@ class ScreenshotDirective(SphinxDirective, Figure):
     pdf = 'pdf' in self.options
     full_page = ('full-page' in self.options or
                  self.env.config.screenshot_default_full_page)
+    mobile = ('mobile' in self.options or
+              self.env.config.screenshot_default_mobile)
     locale = self.options.get('locale',
                               self.env.config.screenshot_default_locale)
     timezone = self.options.get('timezone',
@@ -258,7 +266,7 @@ class ScreenshotDirective(SphinxDirective, Figure):
                              url_or_filepath, browser, viewport_width,
                              viewport_height, filepath, screenshot_init_script,
                              interactions, pdf, color_scheme, full_page,
-                             context_builder, request_headers, locale,
+                             mobile, context_builder, request_headers, locale,
                              timezone)
       fut.result()
 
@@ -356,6 +364,11 @@ def setup(app: Sphinx) -> Meta:
       'env',
       types=[dict[str, str]],
       description="A dict of WSGI apps")
+  app.add_config_value(
+      'screenshot_default_mobile',
+      False,
+      'env',
+      description="Whether to take a screenshot for a mobile device")
   app.connect('config-inited', setup_apps)
   app.connect('build-finished', teardown_apps)
   return {
