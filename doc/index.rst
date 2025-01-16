@@ -31,6 +31,14 @@ Then use the `screenshot` directive in your Sphinx source file.
 
     .. screenshot:: http://www.example.com
 
+The extension also supports the ``file://`` protocol to take screenshots of local files, and root or document relative paths.
+
+.. code-block:: rst
+
+    .. screenshot:: file:///path/to/your/file.html
+    .. screenshot:: /static/example.html
+    .. screenshot:: ./example.html
+
 Options
 #######
 
@@ -138,10 +146,6 @@ It also generates a PDF file when :code:`pdf` option is given, which might be us
     .. screenshot:: http://www.example.com
       :pdf:
 
-.. screenshot:: http://www.example.com
-  :pdf:
-
-
 .. _viewport_width:
 .. _viewport_height:
 
@@ -153,11 +157,11 @@ You can specify the screen size for a particular screenshot with :code:`viewport
 .. code-block:: rst
 
     .. screenshot:: http://www.example.com
-      :viewport-width: 800
+      :viewport-width: 320
       :viewport-height: 600
 
 .. screenshot:: http://www.example.com
-  :viewport-width: 800
+  :viewport-width: 320
   :viewport-height: 600
 
 Configuration
@@ -300,27 +304,11 @@ Then you can use a Sphinx substitution with your application name to refer to it
 
     .. screenshot:: |example|/hello
 
-Local http server
-#################
-
-`sphinxcontrib-screenshot` supports URLs with the HTTP and HTTPS protocols.
-To take screenshots of local files and build the document while running a local server for them, you can use the NPM library `concurrently <https://www.npmjs.com/package/concurrently>`__ in the following way:
-
-.. code-block:: bash
-   :caption: Build the document
-
-   npx --yes concurrently -k --success=first "make html" "python3 -m http.server 3000 --directory=examples"
-
-.. code-block:: bash
-   :caption: Watch and build the document
-
-   npx --yes concurrently -k "make livehtml" "python3 -m http.server 3000 --directory=examples"
-
 Notes
 #####
 
 This extension uses `Playwright <https://playwright.dev>`__ to capture a screenshot of the specified website only.
-No data is sent to any other external server; the request is limited to the specified website.
+No data is sent to any other external server; the request is limited to the website specified in the directive.
 Be cautious: avoid including sensitive information (such as authentication data) in the directive content.
 
 Contributing

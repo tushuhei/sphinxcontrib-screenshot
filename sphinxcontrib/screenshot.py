@@ -82,6 +82,24 @@ class ScreenshotDirective(SphinxDirective, Figure):
   .. screenshot:: http://www.example.com
     :pdf:
   ```
+
+  You can take a screenshot of a local file using a root-relative path.
+
+  ```rst
+  .. screenshot:: /static/example.html
+  ```
+
+  Or you can use a document-relative path.
+
+  ```rst
+  .. screenshot:: ./example.html
+  ```
+
+  The `file://` protocol is also supported.
+
+  ```rst
+   .. screenshot:: file:///path/to/your/file.html
+   ```
   """
 
   required_arguments = 1  # URL
