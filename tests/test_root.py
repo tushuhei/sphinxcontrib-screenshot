@@ -25,7 +25,8 @@ def test_default(app: SphinxTestApp) -> None:
   app.build()
 
   def test_index():
-    soup = BeautifulSoup((app.outdir / "index.html").read_text(), "html.parser")
+    soup = BeautifulSoup((app.outdir / "index.html").read_text(),
+                         "html.parser")
 
     # Every screenshot directive should become an image.
     imgs = soup.find_all('img')
@@ -52,13 +53,12 @@ def test_default(app: SphinxTestApp) -> None:
     # High reso image should have a larger size.
     imgsrc_standard = app.outdir / imgs[0]['src']
     imgsrc_highreso = app.outdir / imgs[3]['src']
-    assert (
-        Image.open(imgsrc_highreso).width == Image.open(imgsrc_standard).width *
-        2)
+    assert (Image.open(imgsrc_highreso).width ==
+            Image.open(imgsrc_standard).width * 2)
 
   def test_sections_index():
     soup = BeautifulSoup((app.outdir / "sections" / "index.html").read_text(),
-                        "html.parser")
+                         "html.parser")
 
     # Every screenshot directive should become an image.
     imgs = soup.find_all('img')
@@ -73,6 +73,7 @@ def test_default(app: SphinxTestApp) -> None:
 
   test_index()
   test_sections_index()
+
 
 @pytest.mark.sphinx('html', testroot="default-size")
 def test_default_size(app: SphinxTestApp, status: StringIO, warning: StringIO,
