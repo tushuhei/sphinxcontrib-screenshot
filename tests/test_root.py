@@ -75,9 +75,8 @@ def test_default(app: SphinxTestApp) -> None:
   test_sections_index()
 
 
-@pytest.mark.sphinx('html', testroot="default-size")
-def test_default_size(app: SphinxTestApp, status: StringIO, warning: StringIO,
-                      image_regression) -> None:
+@pytest.mark.sphinx('html', testroot="default-viewport")
+def test_default_viewport(app: SphinxTestApp) -> None:
   """Test the 'screenshot_default_viewport_width' and
   'screenshot_default_viewport_height' configuration parameters."""
   app.build()
