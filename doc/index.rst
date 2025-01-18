@@ -95,6 +95,21 @@ The custom context to use for taking the screenshot. See :ref:`screenshot_contex
     .. screenshot:: http://www.example.com
       :context: logged-as-user
 
+
+.. _device-scale-factor:
+
+``:device-scale-factor:``
+=========================
+
+You can set the device scale factor, which can be thought of as DPR (device pixel ratio):
+
+.. code-block:: rst
+
+    .. screenshot:: http://www.example.com
+      :device-scale-factor: 2
+
+
+
 .. _full-page:
 
 ``:full-page:``
@@ -134,6 +149,19 @@ You can describe the interaction that you want to have with the webpage before t
       :interactions:
         document.querySelector('button').click();
 
+
+.. _locale:
+
+``:locale:``
+============
+
+You can set the locale for the browser context:
+
+.. code-block:: rst
+
+    .. screenshot:: http://www.example.com
+      :locale: en-US
+
 .. _pdf:
 
 ``:pdf:``
@@ -145,6 +173,20 @@ It also generates a PDF file when :code:`pdf` option is given, which might be us
 
     .. screenshot:: http://www.example.com
       :pdf:
+
+
+.. _timezone:
+
+``:timezone:``
+=============
+
+You can set the timezone for the browser context:
+
+.. code-block:: rst
+
+    .. screenshot:: http://www.example.com
+      :timezone: America/New_York
+
 
 .. _viewport_width:
 .. _viewport_height:
@@ -242,6 +284,37 @@ This is the default value to use when :ref:`:full-page: <full-page>` is not set.
 .. code-block:: python
 
    screenshot_default_full_page = True
+
+
+``screenshot_default_device_scale_factor``
+==========================================
+
+This is the default value to use when :ref:`:device-scale-factor: <device-scale-factor>` is not set.  Defaults to 1.
+
+.. code-block:: python
+
+   screenshot_default_device_scale_factor = 2
+
+
+``screenshot_default_locale``
+=============================
+
+This is the default value to use when :ref:`:locale: <locale>` is not set. Defaults to `None`.
+
+.. code-block:: python
+
+   screenshot_default_locale = "en-US"
+
+
+``screenshot_default_timezone``
+==============================
+
+This is the default value to use when :ref:`:timezone: <timezone>` is not set. Defaults to `None`.
+
+.. code-block:: python
+
+   screenshot_default_timezone = "America/New_York"
+
 
 ``screenshot_default_headers``
 ==============================
