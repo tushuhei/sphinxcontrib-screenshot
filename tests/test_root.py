@@ -23,38 +23,56 @@ from sphinx.testing.util import SphinxTestApp
 @pytest.mark.sphinx('html', testroot='root')
 def test_default(app: SphinxTestApp) -> None:
   app.build()
-  soup = BeautifulSoup((app.outdir / "index.html").read_text(), "html.parser")
 
-  # Every screenshot directive should become an image.
-  imgs = soup.find_all('img')
-  assert len(list(imgs)) == 3
+  def test_index():
+    soup = BeautifulSoup((app.outdir / "index.html").read_text(),
+                         "html.parser")
 
-  # The image size should be set as specified.
-  img_obj = Image.open(app.outdir / imgs[0]['src'])
-  width, height = img_obj.size
-  assert width == 480
-  assert height == 320
+    # Every screenshot directive should become an image.
+    imgs = soup.find_all('img')
+    assert len(list(imgs)) == 4
 
-  # The images should be different after the specified user interaction.
-  imgsrc_before_interaction = app.outdir / imgs[1]['src']
-  imgsrc_after_interaction = app.outdir / imgs[2]['src']
-  assert imgsrc_before_interaction != imgsrc_after_interaction
-  assert list(Image.open(imgsrc_before_interaction).getdata()) != list(
-      Image.open(imgsrc_after_interaction).getdata())
+    # The image size should be set as specified.
+    img_obj = Image.open(app.outdir / imgs[0]['src'])
+    width, height = img_obj.size
+    assert width == 480
+    assert height == 320
 
-  soup = BeautifulSoup((app.outdir / "sections" / "index.html").read_text(),
-                       "html.parser")
+    # The images should be the same if the difference is only the caption.
+    img_with_caption_a = imgs[0]
+    img_with_caption_b = imgs[1]
+    assert img_with_caption_a['src'] == img_with_caption_b['src']
 
-  # Every screenshot directive should become an image.
-  imgs = soup.find_all('img')
-  assert len(list(imgs)) == 2
+    # The images should be different after the specified user interaction.
+    imgsrc_before_interaction = app.outdir / imgs[1]['src']
+    imgsrc_after_interaction = app.outdir / imgs[2]['src']
+    assert imgsrc_before_interaction != imgsrc_after_interaction
+    assert list(Image.open(imgsrc_before_interaction).getdata()) != list(
+        Image.open(imgsrc_after_interaction).getdata())
 
-  # The images should be the same.
-  imgsrc_relative = app.outdir / "sections" / imgs[0]['src']
-  imgsrc_absolute = app.outdir / "sections" / imgs[1]['src']
-  assert imgsrc_relative != imgsrc_absolute
-  assert list(Image.open(imgsrc_relative).getdata()) == list(
-      Image.open(imgsrc_absolute).getdata())
+    # High reso image should have a larger size.
+    imgsrc_standard = app.outdir / imgs[0]['src']
+    imgsrc_highreso = app.outdir / imgs[3]['src']
+    assert (Image.open(imgsrc_highreso).width ==
+            Image.open(imgsrc_standard).width * 2)
+
+  def test_sections_index():
+    soup = BeautifulSoup((app.outdir / "sections" / "index.html").read_text(),
+                         "html.parser")
+
+    # Every screenshot directive should become an image.
+    imgs = soup.find_all('img')
+    assert len(list(imgs)) == 2
+
+    # The images should be the same.
+    imgsrc_relative = app.outdir / "sections" / imgs[0]['src']
+    imgsrc_absolute = app.outdir / "sections" / imgs[1]['src']
+    assert imgsrc_relative != imgsrc_absolute
+    assert list(Image.open(imgsrc_relative).getdata()) == list(
+        Image.open(imgsrc_absolute).getdata())
+
+  test_index()
+  test_sections_index()
 
 
 @pytest.mark.sphinx('html', testroot="default-size")
