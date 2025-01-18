@@ -18,5 +18,12 @@
 
   Changing the background.
 
+.. screenshot:: http://www.example.com
+  :viewport-width: 480
+  :viewport-height: 320
+  :device-scale-factor: 2
+
+  This is high reso.
+
 .. toctree::
   sections/index

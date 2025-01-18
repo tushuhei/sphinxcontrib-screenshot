@@ -116,6 +116,7 @@ class ScreenshotDirective(SphinxDirective, Figure):
       'headers': directives.unchanged,
       'locale': str,
       'timezone': str,
+      'device-scale-factor': directives.positive_int,
   }
   pool = ThreadPoolExecutor()
 
@@ -125,7 +126,7 @@ class ScreenshotDirective(SphinxDirective, Figure):
                       interactions: str, generate_pdf: bool,
                       color_scheme: ColorScheme, full_page: bool,
                       context_builder: ContextBuilder, headers: dict,
-                      locale: typing.Optional[str],
+                      device_scale_factor: int, locale: typing.Optional[str],
                       timezone: typing.Optional[str]):
     """Takes a screenshot with Playwright's Chromium browser.
 
@@ -145,6 +146,8 @@ class ScreenshotDirective(SphinxDirective, Figure):
       full_page (bool): Take a full page screenshot.
       context: A method to build the Playwright context.
       headers (dict): Custom request header.
+      device_scale_factor (int): The device scale factor for the screenshot.
+        This can be thought of as DPR (device pixel ratio).
       locale (str, optional): User locale for the request.
       timezone (str, optional): User timezone for the request.
     """
@@ -160,7 +163,10 @@ class ScreenshotDirective(SphinxDirective, Figure):
               (url, context_builder.__name__))
       else:
         context = browser.new_context(
-            color_scheme=color_scheme, locale=locale, timezone_id=timezone)
+            color_scheme=color_scheme,
+            locale=locale,
+            timezone_id=timezone,
+            device_scale_factor=device_scale_factor)
 
       page = context.new_page()
       page.set_default_timeout(10000)
@@ -247,7 +253,9 @@ class ScreenshotDirective(SphinxDirective, Figure):
                                 self.env.config.screenshot_default_timezone)
     context = self.options.get('context', '')
     headers = self.options.get('headers', '')
-
+    device_scale_factor = self.options.get(
+        'device-scale-factor',
+        self.env.config.screenshot_default_device_scale_factor)
     request_headers = {**self.env.config.screenshot_default_headers}
     if headers:
       for header in headers.strip().split("\n"):
@@ -259,7 +267,8 @@ class ScreenshotDirective(SphinxDirective, Figure):
         raw_path, browser,
         str(viewport_height),
         str(viewport_width), color_scheme, context, interactions,
-        str(full_page)
+        str(full_page),
+        str(device_scale_factor)
     ])
     filename = hashlib.md5(hash_input.encode()).hexdigest() + '.png'
     filepath = os.path.join(ss_dirpath, filename)
@@ -276,8 +285,8 @@ class ScreenshotDirective(SphinxDirective, Figure):
                              url_or_filepath, browser, viewport_width,
                              viewport_height, filepath, screenshot_init_script,
                              interactions, pdf, color_scheme, full_page,
-                             context_builder, request_headers, locale,
-                             timezone)
+                             context_builder, request_headers,
+                             device_scale_factor, locale, timezone)
       fut.result()
 
     # Create image and figure nodes
@@ -359,6 +368,12 @@ def setup(app: Sphinx) -> Meta:
       'screenshot_default_headers', {},
       'env',
       description="The default headers to pass in requests")
+  app.add_config_value(
+      'screenshot_default_device_scale_factor',
+      1,
+      'env',
+      description="The default device scale factor " +
+      "a.k.a. DPR (device pixel ratio)")
   app.add_config_value(
       'screenshot_default_locale',
       None,
