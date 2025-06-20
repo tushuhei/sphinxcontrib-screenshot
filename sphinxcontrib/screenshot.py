@@ -104,7 +104,7 @@ class ScreenshotDirective(SphinxDirective, Figure):
 
   required_arguments = 1  # URL
   option_spec = {
-      **Figure.option_spec,
+      **(Figure.option_spec or {}),
       'browser': str,
       'viewport-height': directives.positive_int,
       'viewport-width': directives.positive_int,
