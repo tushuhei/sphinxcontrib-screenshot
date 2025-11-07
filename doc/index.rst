@@ -188,6 +188,26 @@ You can set the timezone for the browser context:
       :timezone: America/New_York
 
 
+.. _status-code:
+
+``:status-code:``
+=================
+
+You can specify the expected HTTP status codes. A warning is emitted if the page returns a different code.
+
+.. code-block:: rst
+
+    .. screenshot:: http://www.example.com
+      :status-code: 200,201,302
+
+Default: ``200,302``
+
+The warning can be suppressed in ``conf.py``:
+
+.. code-block:: python
+
+    suppress_warnings = ['screenshot.status_code']
+
 .. _viewport_width:
 .. _viewport_height:
 

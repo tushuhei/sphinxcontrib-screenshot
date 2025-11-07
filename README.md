@@ -8,6 +8,7 @@ A Sphinx extension to embed website screenshots.
   :viewport-width: 1280
   :viewport-height: 960
   :color-scheme: dark
+  :status-code: 200,302
 ```
 
 Read more in the [documentation](https://sphinxcontrib-screenshot.readthedocs.io).

@@ -32,7 +32,10 @@ from playwright.sync_api import sync_playwright
 from portpicker import pick_unused_port
 from sphinx.application import Sphinx
 from sphinx.config import Config
+from sphinx.util import logging as sphinx_logging
 from sphinx.util.docutils import SphinxDirective
+
+logger = sphinx_logging.getLogger(__name__)
 
 Meta = typing.TypedDict('Meta', {
     'version': str,
@@ -42,6 +45,18 @@ Meta = typing.TypedDict('Meta', {
 
 ContextBuilder = typing.Optional[typing.Callable[[Browser, str, str],
                                                  BrowserContext]]
+
+
+def parse_expected_status_codes(codes_str: str) -> typing.List[int]:
+  """Parse a comma-separated string of HTTP status codes into a list.
+
+  Args:
+    codes_str: Comma-separated status codes like "200, 201, 302".
+
+  Returns:
+    List of integer status codes.
+  """
+  return [int(code.strip()) for code in codes_str.split(',')]
 
 
 class ScreenshotDirective(SphinxDirective, Figure):
@@ -117,17 +132,28 @@ class ScreenshotDirective(SphinxDirective, Figure):
       'locale': str,
       'timezone': str,
       'device-scale-factor': directives.positive_int,
+      'status-code': str,
   }
   pool = ThreadPoolExecutor()
 
   @staticmethod
-  def take_screenshot(url: str, browser_name: str, viewport_width: int,
-                      viewport_height: int, filepath: str, init_script: str,
-                      interactions: str, generate_pdf: bool,
-                      color_scheme: ColorScheme, full_page: bool,
-                      context_builder: ContextBuilder, headers: dict,
-                      device_scale_factor: int, locale: typing.Optional[str],
-                      timezone: typing.Optional[str]):
+  def take_screenshot(url: str,
+                      browser_name: str,
+                      viewport_width: int,
+                      viewport_height: int,
+                      filepath: str,
+                      init_script: str,
+                      interactions: str,
+                      generate_pdf: bool,
+                      color_scheme: ColorScheme,
+                      full_page: bool,
+                      context_builder: ContextBuilder,
+                      headers: dict,
+                      device_scale_factor: int,
+                      locale: typing.Optional[str],
+                      timezone: typing.Optional[str],
+                      expected_status_codes: typing.Optional[str] = None,
+                      location: typing.Optional[str] = None):
     """Takes a screenshot with Playwright's Chromium browser.
 
     Args:
@@ -150,7 +176,16 @@ class ScreenshotDirective(SphinxDirective, Figure):
         This can be thought of as DPR (device pixel ratio).
       locale (str, optional): User locale for the request.
       timezone (str, optional): User timezone for the request.
+      expected_status_codes (str, optional): Expected HTTP status codes.
+        Format: comma-separated list of codes (e.g., "200,201,302").
+        Defaults to "200,302" (OK and redirect).
+      location (str, optional): Document location for warning messages.
     """
+    if expected_status_codes is None:
+      expected_status_codes = "200,302"
+
+    valid_codes = parse_expected_status_codes(expected_status_codes)
+
     with sync_playwright() as playwright:
       browser: Browser = getattr(playwright, browser_name).launch()
 
@@ -179,7 +214,16 @@ class ScreenshotDirective(SphinxDirective, Figure):
         if init_script:
           page.add_init_script(init_script)
         page.set_extra_http_headers(headers)
-        page.goto(url)
+        response = page.goto(url)
+
+        if response and response.status not in valid_codes:
+          logger.warning(
+              f'Page {url} returned status code {response.status}, '
+              f'expected one of: {expected_status_codes}',
+              type='screenshot',
+              subtype='status_code',
+              location=location)
+
         page.wait_for_load_state('networkidle')
 
         # Execute interactions
@@ -256,6 +300,7 @@ class ScreenshotDirective(SphinxDirective, Figure):
     device_scale_factor = self.options.get(
         'device-scale-factor',
         self.env.config.screenshot_default_device_scale_factor)
+    status_code = self.options.get('status-code', None)
     request_headers = {**self.env.config.screenshot_default_headers}
     if headers:
       for header in headers.strip().split("\n"):
@@ -268,7 +313,8 @@ class ScreenshotDirective(SphinxDirective, Figure):
         str(viewport_height),
         str(viewport_width), color_scheme, context, interactions,
         str(full_page),
-        str(device_scale_factor)
+        str(device_scale_factor),
+        str(status_code or "")
     ])
     filename = hashlib.md5(hash_input.encode()).hexdigest() + '.png'
     filepath = os.path.join(ss_dirpath, filename)
@@ -286,7 +332,8 @@ class ScreenshotDirective(SphinxDirective, Figure):
                              viewport_height, filepath, screenshot_init_script,
                              interactions, pdf, color_scheme, full_page,
                              context_builder, request_headers,
-                             device_scale_factor, locale, timezone)
+                             device_scale_factor, locale, timezone,
+                             status_code, self.env.docname)
       fut.result()
 
     # Create image and figure nodes
