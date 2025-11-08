@@ -20,6 +20,7 @@ import threading
 import typing
 import wsgiref.simple_server
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from urllib.parse import urlparse
 
 from docutils import nodes
@@ -34,6 +35,7 @@ from sphinx.application import Sphinx
 from sphinx.config import Config
 from sphinx.util import logging as sphinx_logging
 from sphinx.util.docutils import SphinxDirective
+from sphinx.util.fileutil import copy_asset
 
 logger = sphinx_logging.getLogger(__name__)
 
@@ -96,6 +98,16 @@ class ScreenshotDirective(SphinxDirective, Figure):
   ```rst
   .. screenshot:: http://www.example.com
     :pdf:
+  ```
+
+  You can automatically generate both light and dark mode screenshots by
+  setting `:color-scheme: auto`. This creates two screenshots with appropriate
+  CSS classes (`only-light` and `only-dark`) that are automatically shown
+  based on the user's theme preference.
+
+  ```rst
+  .. screenshot:: http://www.example.com
+    :color-scheme: auto
   ```
 
   You can take a screenshot of a local file using a root-relative path.
@@ -250,7 +262,41 @@ class ScreenshotDirective(SphinxDirective, Figure):
       text = text.replace(f"|{key}|", value.astext())
     return text
 
-  def run(self) -> typing.Sequence[nodes.Node]:
+  def _add_css_class_to_nodes(self, nodes_list: typing.Sequence[nodes.Node],
+                              css_class: str) -> typing.Sequence[nodes.Node]:
+    """Add a CSS class to image or figure nodes.
+
+    Args:
+      nodes_list: List of docutils nodes to modify.
+      css_class: CSS class name to add (e.g., 'only-light' or 'only-dark').
+
+    Returns:
+      The modified list of nodes.
+    """
+    for node in nodes_list:
+      if isinstance(node, (nodes.image, nodes.figure)):
+        existing_classes: list = node.get('classes', [])
+        node['classes'] = existing_classes + [css_class]
+      if isinstance(node, nodes.figure):
+        for child in node.children:
+          if isinstance(child, nodes.image):
+            existing_classes = child.get('classes', [])
+            child['classes'] = existing_classes + [css_class]
+    return nodes_list
+
+  def _generate_single_screenshot(
+      self,
+      color_scheme: typing.Optional[str] = None
+  ) -> typing.Sequence[nodes.Node]:
+    """Generate a single screenshot and return the docutils nodes.
+
+    Args:
+      color_scheme: Optional color scheme to override the directive
+        option. Used when generating dual-theme screenshots.
+
+    Returns:
+      List of docutils nodes representing the screenshot.
+    """
     screenshot_init_script: str = self.env.config.screenshot_init_script or ''
     docdir = os.path.dirname(self.env.doc2path(self.env.docname))
 
@@ -258,7 +304,6 @@ class ScreenshotDirective(SphinxDirective, Figure):
     ss_dirpath = os.path.join(self.env.app.outdir, '_static', 'screenshots')
     os.makedirs(ss_dirpath, exist_ok=True)
 
-    # Parse parameters
     raw_path = self.arguments[0]
     url_or_filepath = self.evaluate_substitutions(raw_path)
 
@@ -286,7 +331,7 @@ class ScreenshotDirective(SphinxDirective, Figure):
         'viewport-height', self.env.config.screenshot_default_viewport_height)
     viewport_width = self.options.get(
         'viewport-width', self.env.config.screenshot_default_viewport_width)
-    color_scheme = self.options.get(
+    color_scheme = color_scheme or self.options.get(
         'color-scheme', self.env.config.screenshot_default_color_scheme)
     pdf = 'pdf' in self.options
     full_page = ('full-page' in self.options or
@@ -330,18 +375,57 @@ class ScreenshotDirective(SphinxDirective, Figure):
       fut = self.pool.submit(ScreenshotDirective.take_screenshot,
                              url_or_filepath, browser, viewport_width,
                              viewport_height, filepath, screenshot_init_script,
-                             interactions, pdf, color_scheme, full_page,
+                             interactions, pdf,
+                             typing.cast(ColorScheme, color_scheme), full_page,
                              context_builder, request_headers,
                              device_scale_factor, locale, timezone,
                              status_code, self.env.docname)
       fut.result()
 
-    # Create image and figure nodes
     rel_ss_dirpath = os.path.relpath(ss_dirpath, start=docdir)
     rel_filepath = os.path.join(rel_ss_dirpath, filename).replace(os.sep, '/')
 
     self.arguments[0] = rel_filepath
     return super().run()
+
+  def _generate_dual_theme_screenshots(self) -> typing.Sequence[nodes.Node]:
+    """Generate two screenshots (light and dark mode) with CSS classes.
+
+    Returns:
+      List of docutils nodes containing both light and dark mode screenshots.
+    """
+    original_arguments = self.arguments[:]
+    original_options = self.options.copy()
+
+    light_nodes = self._generate_single_screenshot(color_scheme='light')
+    light_nodes = self._add_css_class_to_nodes(light_nodes, 'only-light')
+
+    self.arguments = original_arguments[:]
+    self.options = original_options.copy()
+
+    dark_nodes = self._generate_single_screenshot(color_scheme='dark')
+    dark_nodes = self._add_css_class_to_nodes(dark_nodes, 'only-dark')
+
+    self.arguments = original_arguments
+    self.options = original_options
+
+    return list(light_nodes) + list(dark_nodes)
+
+  def run(self) -> typing.Sequence[nodes.Node]:
+    """Process the screenshot directive and generate appropriate nodes.
+
+    Returns:
+      List of docutils nodes. If color-scheme is 'auto', returns two sets
+      of nodes (one for light mode, one for dark mode). Otherwise returns
+      a single screenshot node.
+    """
+    color_scheme = self.options.get(
+        'color-scheme', self.env.config.screenshot_default_color_scheme)
+
+    if color_scheme == 'auto':
+      return self._generate_dual_theme_screenshots()
+    else:
+      return self._generate_single_screenshot()
 
 
 app_threads = {}
@@ -378,6 +462,26 @@ def teardown_apps(app: Sphinx, exception: typing.Optional[Exception]):
     thread.join()
 
 
+def copy_static_files(app: Sphinx, exception: typing.Optional[Exception]):
+  """Copy static CSS files from the extension to the build output directory.
+
+  This function is called during the build-finished event to copy the
+  screenshot-theme.css file to the output directory.
+
+  Args:
+    app: The Sphinx application instance.
+    exception: Exception that occurred during build, if any.
+  """
+  if exception is None and app.builder.format == 'html':
+    static_source_dir = Path(__file__).parent / 'static'
+    static_dest_dir = Path(app.outdir) / '_static' / 'sphinxcontrib-screenshot'
+    static_dest_dir.mkdir(parents=True, exist_ok=True)
+
+    css_source = str(static_source_dir / 'screenshot-theme.css')
+    css_dest = str(static_dest_dir)
+    copy_asset(css_source, css_dest)
+
+
 def setup(app: Sphinx) -> Meta:
   app.add_directive('screenshot', ScreenshotDirective)
   app.add_config_value('screenshot_init_script', '', 'env')
@@ -405,7 +509,8 @@ def setup(app: Sphinx) -> Meta:
       'screenshot_default_color_scheme',
       'null',
       'env',
-      description="The default color scheme for screenshots")
+      description="The default color scheme for screenshots. " +
+      "Use 'auto' to generate both light and dark mode screenshots")
   app.add_config_value(
       'screenshot_contexts', {},
       'env',
@@ -438,6 +543,8 @@ def setup(app: Sphinx) -> Meta:
       description="A dict of WSGI apps")
   app.connect('config-inited', setup_apps)
   app.connect('build-finished', teardown_apps)
+  app.connect('build-finished', copy_static_files)
+  app.add_css_file('sphinxcontrib-screenshot/screenshot-theme.css')
   return {
       'version': importlib.metadata.version('sphinxcontrib-screenshot'),
       'parallel_read_safe': True,

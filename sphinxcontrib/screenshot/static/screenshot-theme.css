@@ -1,0 +1,12 @@
+.only-dark {
+    display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+    .only-light {
+        display: none;
+    }
+    .only-dark {
+        display: revert;
+    }
+}

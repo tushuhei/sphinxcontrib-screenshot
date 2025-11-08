@@ -1,0 +1,29 @@
+<html>
+    <head>
+        <style>
+        :root {
+            --background-color: #FFFFFF;
+            --text-color: #000000;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --background-color: #000000;
+                --text-color: #FFFFFF;
+            }
+        }
+
+        body {
+                background: var(--background-color);
+                color: var(--text-color);
+                font-family: arial;
+                font-size: 10px;
+                margin: 0;
+                padding: 0
+            }
+        </style>
+    </head>
+    <body>
+        Hello, auto dark mode!
+    </body>
+</html>
