@@ -60,11 +60,13 @@ doc = [
 ]
 
 [tool.setuptools]
-packages = ["sphinxcontrib"]
 include-package-data = true
 
+[tool.setuptools.packages.find]
+include = ["sphinxcontrib*"]
+
 [tool.setuptools.package-data]
-"sphinxcontrib" = ["*"]
+"sphinxcontrib.screenshot" = ["static/*"]
 
 [tool.yapf]
 based_on_style = "yapf"
