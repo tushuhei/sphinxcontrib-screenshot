@@ -74,7 +74,7 @@ column_limit = 79
 indent-size = 2
 
 [tool.mypy]
-python_version = 3.10
+python_version = "3.10"
 pretty = true
 packages = ["sphinxcontrib"]
 
