@@ -195,6 +195,20 @@ You can set the timezone for the browser context:
 
 You can specify the expected HTTP status codes. A warning is emitted if the page returns a different code.
 
+.. _timeout:
+
+``:timeout:``
+=============
+
+You can set the timeout in milliseconds for page operations (navigation, interactions):
+
+.. code-block:: rst
+
+    .. screenshot:: http://www.example.com
+      :timeout: 30000
+
+Default: ``10000`` (10 seconds)
+
 .. code-block:: rst
 
     .. screenshot:: http://www.example.com
@@ -334,6 +348,16 @@ This is the default value to use when :ref:`:timezone: <timezone>` is not set. D
 .. code-block:: python
 
    screenshot_default_timezone = "America/New_York"
+
+
+``screenshot_default_timeout``
+==============================
+
+This is the default value to use when :ref:`:timeout: <timeout>` is not set. Defaults to ``10000`` (10 seconds).
+
+.. code-block:: python
+
+   screenshot_default_timeout = 30000
 
 
 ``screenshot_default_headers``
