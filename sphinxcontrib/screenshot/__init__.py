@@ -145,6 +145,7 @@ class ScreenshotDirective(SphinxDirective, Figure):
       'timezone': str,
       'device-scale-factor': directives.positive_int,
       'status-code': str,
+      'timeout': directives.positive_int,
   }
   pool = ThreadPoolExecutor()
 
@@ -165,7 +166,8 @@ class ScreenshotDirective(SphinxDirective, Figure):
                       locale: typing.Optional[str],
                       timezone: typing.Optional[str],
                       expected_status_codes: typing.Optional[str] = None,
-                      location: typing.Optional[str] = None):
+                      location: typing.Optional[str] = None,
+                      timeout: int = 10000):
     """Takes a screenshot with Playwright's Chromium browser.
 
     Args:
@@ -216,7 +218,7 @@ class ScreenshotDirective(SphinxDirective, Figure):
             device_scale_factor=device_scale_factor)
 
       page = context.new_page()
-      page.set_default_timeout(10000)
+      page.set_default_timeout(timeout)
       page.set_viewport_size({
           'width': viewport_width,
           'height': viewport_height
@@ -346,6 +348,8 @@ class ScreenshotDirective(SphinxDirective, Figure):
         'device-scale-factor',
         self.env.config.screenshot_default_device_scale_factor)
     status_code = self.options.get('status-code', None)
+    timeout = self.options.get('timeout',
+                               self.env.config.screenshot_default_timeout)
     request_headers = {**self.env.config.screenshot_default_headers}
     if headers:
       for header in headers.strip().split("\n"):
@@ -379,7 +383,7 @@ class ScreenshotDirective(SphinxDirective, Figure):
                              typing.cast(ColorScheme, color_scheme), full_page,
                              context_builder, request_headers,
                              device_scale_factor, locale, timezone,
-                             status_code, self.env.docname)
+                             status_code, self.env.docname, timeout)
       fut.result()
 
     rel_ss_dirpath = os.path.relpath(ss_dirpath, start=docdir)
@@ -541,6 +545,11 @@ def setup(app: Sphinx) -> Meta:
       'env',
       types=[dict[str, str]],
       description="A dict of WSGI apps")
+  app.add_config_value(
+      'screenshot_default_timeout',
+      10000,
+      'env',
+      description="The default timeout in milliseconds for page operations")
   app.connect('config-inited', setup_apps)
   app.connect('build-finished', teardown_apps)
   app.connect('build-finished', copy_static_files)
