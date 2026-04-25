@@ -110,6 +110,14 @@ class ScreenshotDirective(SphinxDirective, Figure):
     :color-scheme: auto
   ```
 
+  You can crop the screenshot to a single element on the page using a
+  Playwright selector. The image is bounded by the element's bounding box.
+
+  ```rst
+  .. screenshot:: http://www.example.com
+    :locator: #content
+  ```
+
   You can take a screenshot of a local file using a root-relative path.
 
   ```rst
@@ -146,6 +154,7 @@ class ScreenshotDirective(SphinxDirective, Figure):
       'device-scale-factor': directives.positive_int,
       'status-code': str,
       'timeout': directives.positive_int,
+      'locator': str,
   }
   pool = ThreadPoolExecutor()
 
@@ -167,7 +176,8 @@ class ScreenshotDirective(SphinxDirective, Figure):
                       timezone: typing.Optional[str],
                       expected_status_codes: typing.Optional[str] = None,
                       location: typing.Optional[str] = None,
-                      timeout: int = 10000):
+                      timeout: int = 10000,
+                      locator: typing.Optional[str] = None):
     """Takes a screenshot with Playwright's Chromium browser.
 
     Args:
@@ -183,7 +193,8 @@ class ScreenshotDirective(SphinxDirective, Figure):
         after the page was loaded.
       generate_pdf (bool): Generate a PDF file along with the screenshot.
       color_scheme (str): The preferred color scheme. Can be 'light' or 'dark'.
-      full_page (bool): Take a full page screenshot.
+      full_page (bool): Take a full page screenshot. Ignored when ``locator``
+        is set (the locator's bounding box wins).
       context: A method to build the Playwright context.
       headers (dict): Custom request header.
       device_scale_factor (int): The device scale factor for the screenshot.
@@ -194,6 +205,11 @@ class ScreenshotDirective(SphinxDirective, Figure):
         Format: comma-separated list of codes (e.g., "200,201,302").
         Defaults to "200,302" (OK and redirect).
       location (str, optional): Document location for warning messages.
+      locator (str, optional): Playwright selector. When set, the screenshot
+        is cropped to the bounding box of the matched element rather than
+        capturing the viewport. The selector must match a single element
+        (Playwright strict mode). PDF generation, when enabled, remains
+        page-level since Playwright's PDF API has no per-element variant.
     """
     if expected_status_codes is None:
       expected_status_codes = "200,302"
@@ -247,7 +263,10 @@ class ScreenshotDirective(SphinxDirective, Figure):
       except PlaywrightTimeoutError:
         raise RuntimeError('Timeout error occured at %s in executing\n%s' %
                            (url, interactions))
-      page.screenshot(path=filepath, full_page=full_page)
+      if locator:
+        page.locator(locator).screenshot(path=filepath)
+      else:
+        page.screenshot(path=filepath, full_page=full_page)
       if generate_pdf:
         page.emulate_media(media='screen')
         root, ext = os.path.splitext(filepath)
@@ -350,6 +369,7 @@ class ScreenshotDirective(SphinxDirective, Figure):
     status_code = self.options.get('status-code', None)
     timeout = self.options.get('timeout',
                                self.env.config.screenshot_default_timeout)
+    locator = self.options.get('locator', '')
     request_headers = {**self.env.config.screenshot_default_headers}
     if headers:
       for header in headers.strip().split("\n"):
@@ -358,12 +378,17 @@ class ScreenshotDirective(SphinxDirective, Figure):
 
     # Generate filename based on hash of parameters
     hash_input = "_".join([
-        raw_path, browser,
+        raw_path,
+        browser,
         str(viewport_height),
-        str(viewport_width), color_scheme, context, interactions,
+        str(viewport_width),
+        color_scheme,
+        context,
+        interactions,
         str(full_page),
         str(device_scale_factor),
-        str(status_code or "")
+        str(status_code or ""),
+        locator,
     ])
     filename = hashlib.md5(hash_input.encode()).hexdigest() + '.png'
     filepath = os.path.join(ss_dirpath, filename)
@@ -376,14 +401,13 @@ class ScreenshotDirective(SphinxDirective, Figure):
 
     # Check if the file already exists. If not, take a screenshot
     if not os.path.exists(filepath):
-      fut = self.pool.submit(ScreenshotDirective.take_screenshot,
-                             url_or_filepath, browser, viewport_width,
-                             viewport_height, filepath, screenshot_init_script,
-                             interactions, pdf,
-                             typing.cast(ColorScheme, color_scheme), full_page,
-                             context_builder, request_headers,
-                             device_scale_factor, locale, timezone,
-                             status_code, self.env.docname, timeout)
+      fut = self.pool.submit(
+          ScreenshotDirective.take_screenshot, url_or_filepath, browser,
+          viewport_width, viewport_height, filepath,
+          screenshot_init_script, interactions, pdf,
+          typing.cast(ColorScheme, color_scheme), full_page, context_builder,
+          request_headers, device_scale_factor, locale, timezone, status_code,
+          self.env.docname, timeout, locator or None)
       fut.result()
 
     rel_ss_dirpath = os.path.relpath(ss_dirpath, start=docdir)
