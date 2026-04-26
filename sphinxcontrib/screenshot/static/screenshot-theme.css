@@ -10,3 +10,11 @@
         display: revert;
     }
 }
+
+/* Mirror Sphinx's basic.css rule for <img> so screencasts get the same
+   responsive sizing as screenshots. Otherwise a video recorded at the
+   default 1280px viewport overflows narrower content columns. */
+video {
+    max-width: 100%;
+    height: auto;
+}

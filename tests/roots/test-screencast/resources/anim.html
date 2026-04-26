@@ -1,0 +1,17 @@
+<!doctype html>
+<html>
+<head>
+<style>body { margin: 0; padding: 12px; font-family: sans-serif; }</style>
+</head>
+<body>
+<button id="b">Click me</button>
+<div id="counter">0</div>
+<script>
+let n = 0;
+document.getElementById('b').addEventListener('click', () => {
+  n++;
+  document.getElementById('counter').textContent = n;
+});
+</script>
+</body>
+</html>
