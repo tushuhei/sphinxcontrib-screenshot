@@ -150,6 +150,34 @@ You can describe the interaction that you want to have with the webpage before t
         document.querySelector('button').click();
 
 
+.. _locator:
+
+``:locator:``
+=============
+
+You can crop the screenshot to a single element on the page using a
+`Playwright selector <https://playwright.dev/python/docs/locators>`__.
+The image is bounded by the element's bounding box rather than the
+viewport.
+
+.. code-block:: rst
+
+    .. screenshot:: http://www.example.com
+      :locator: #content
+
+The page is still rendered at the full :ref:`viewport <viewport_width>`,
+so layout (responsive design, scrollbars) reflects the configured
+viewport size; only the captured area is reduced to the matched element.
+
+The selector must match exactly one element (Playwright strict mode).
+A multi-match selector raises an error; refine the selector. If no
+element is matched within :ref:`timeout <timeout>`, the build fails.
+
+When combined with :ref:`full-page <full-page>`, ``:locator:`` wins
+(the bounding box is honored). When combined with :ref:`pdf <pdf>`,
+the PNG is cropped but the PDF stays page-level — Playwright's PDF
+API has no per-element variant.
+
 .. _locale:
 
 ``:locale:``
@@ -178,7 +206,7 @@ It also generates a PDF file when :code:`pdf` option is given, which might be us
 .. _timezone:
 
 ``:timezone:``
-=============
+==============
 
 You can set the timezone for the browser context:
 
@@ -341,7 +369,7 @@ This is the default value to use when :ref:`:locale: <locale>` is not set. Defau
 
 
 ``screenshot_default_timezone``
-==============================
+===============================
 
 This is the default value to use when :ref:`:timezone: <timezone>` is not set. Defaults to `None`.
 
