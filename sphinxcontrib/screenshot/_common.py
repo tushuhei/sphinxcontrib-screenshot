@@ -272,7 +272,8 @@ class _PlaywrightDirective(SphinxDirective):
       # Ensure file access is restricted to the Sphinx source directory.
       import urllib.request
       parsed_url = urlparse(url_or_filepath)
-      # url2pathname handles platform-specific path conversion (e.g. file:///C:/)
+      # url2pathname handles platform-specific path conversion
+      # (e.g. file:///C:/)
       filepath = urllib.request.url2pathname(parsed_url.path)
       abs_filepath = os.path.abspath(os.path.normpath(filepath))
       abs_srcdir = os.path.abspath(self.env.srcdir)
