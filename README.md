@@ -1,6 +1,6 @@
 # sphinxcontrib-screenshot
 
-A Sphinx extension to embed website screenshots.
+A Sphinx extension to embed website screenshots and screencasts.
 
 ```rst
 .. screenshot:: http://www.example.com
@@ -9,6 +9,17 @@ A Sphinx extension to embed website screenshots.
   :viewport-height: 960
   :color-scheme: dark
   :status-code: 200,302
+```
+
+```rst
+.. screencast:: http://www.example.com
+  :viewport-width: 1280
+  :viewport-height: 960
+  :controls:
+  :muted:
+
+  document.querySelector('button').click();
+  await new Promise(r => setTimeout(r, 1000));
 ```
 
 Read more in the [documentation](https://sphinxcontrib-screenshot.readthedocs.io).

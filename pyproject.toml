@@ -80,6 +80,7 @@ indent-size = 2
 python_version = "3.10"
 pretty = true
 packages = ["sphinxcontrib"]
+explicit_package_bases = true
 
 [tool.tox]
 requires = ["tox>=4.19"]

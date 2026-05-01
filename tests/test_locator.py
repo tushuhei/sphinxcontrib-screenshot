@@ -45,3 +45,24 @@ def test_locator_option(app: SphinxTestApp, status: StringIO,
 
   assert (width, height) == (200, 100), (
       f"expected #foo's bounding box (200x100), got {width}x{height}")
+
+
+@pytest.mark.sphinx('html', testroot="locator-padding")
+def test_locator_padding_option(app: SphinxTestApp, status: StringIO,
+                                warning: StringIO) -> None:
+  """``:locator-padding:`` widens the bbox by N px on each side."""
+  app.build()
+  out_html = app.outdir / "index.html"
+
+  soup = BeautifulSoup(out_html.read_text(), "html.parser")
+  imgs = soup.find_all('img')
+  assert imgs, "expected a screenshot image"
+
+  img_path = app.outdir / imgs[0]['src']
+  with Image.open(img_path) as img:
+    width, height = img.size
+
+  # #foo is 200x100 with margin 20px; padding=10 expands to 220x120 and
+  # the 20px outer margin keeps the box well within the viewport.
+  assert (width, height) == (220, 120), (
+      f"expected #foo bbox + 10px padding (220x120), got {width}x{height}")
