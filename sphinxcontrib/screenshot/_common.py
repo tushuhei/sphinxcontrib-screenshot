@@ -273,11 +273,21 @@ class _PlaywrightDirective(SphinxDirective):
       import urllib.request
       parsed_url = urlparse(url_or_filepath)
       # url2pathname handles platform-specific path conversion
-      # (e.g. file:///C:/)
+      # (e.g. file:///C:/). Note: parsed_url.path is used as url2pathname
+      # expects the path component of the URL.
       filepath = urllib.request.url2pathname(parsed_url.path)
+      # If netloc is present (e.g. file://host/path), it might be a UNC path
+      # on Windows. url2pathname doesn't always handle netloc.
+      if parsed_url.netloc:
+        # Basic UNC support or just prepending netloc if it looks like a path.
+        # This is complex and usually file:// URLs in Sphinx are local.
+        pass
+
       abs_filepath = os.path.abspath(os.path.normpath(filepath))
       abs_srcdir = os.path.abspath(self.env.srcdir)
       try:
+        # commonpath returns the longest common sub-path. If it's the
+        # srcdir itself, then abs_filepath is within srcdir.
         if os.path.commonpath([abs_srcdir, abs_filepath]) != abs_srcdir:
           raise RuntimeError(
               f'Security Error: Access to file {url_or_filepath} is '

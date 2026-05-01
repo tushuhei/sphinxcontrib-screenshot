@@ -10,9 +10,9 @@ def test_resolve_url_security():
   directive = _PlaywrightDirective.__new__(_PlaywrightDirective)
   env = MagicMock()
   # Use absolute paths that are consistent
-  env.srcdir = "/app/docs"
-  env.docname = "index"
-  env.doc2path.return_value = "/app/docs/index.rst"
+  env.srcdir = '/app/docs'
+  env.docname = 'index'
+  env.doc2path.return_value = '/app/docs/index.rst'
 
   # Mock the env property
   type(directive).env = PropertyMock(return_value=env)
@@ -21,31 +21,31 @@ def test_resolve_url_security():
   directive._evaluate_substitutions = lambda x: x
 
   # 1. Test allowed file path within srcdir
-  allowed_path = "/image.html"
+  allowed_path = '/image.html'
   resolved = directive._resolve_url(allowed_path)
-  assert resolved == "file:///app/docs/image.html"
+  assert resolved == 'file:///app/docs/image.html'
 
   # 2. Test relative path within srcdir
-  resolved = directive._resolve_url("./local.html")
-  assert resolved == "file:///app/docs/local.html"
+  resolved = directive._resolve_url('./local.html')
+  assert resolved == 'file:///app/docs/local.html'
 
   # 3. Test absolute file:// URL within srcdir
-  resolved = directive._resolve_url("file:///app/docs/image.html")
-  assert resolved == "file:///app/docs/image.html"
+  resolved = directive._resolve_url('file:///app/docs/image.html')
+  assert resolved == 'file:///app/docs/image.html'
 
   # 4. Test path traversal attempt (relative)
   # "../../etc/passwd" relative to docdir "/app/docs" -> "/etc/passwd"
-  with pytest.raises(RuntimeError, match="Security Error"):
-    directive._resolve_url("../../etc/passwd")
+  with pytest.raises(RuntimeError, match='Security Error'):
+    directive._resolve_url('../../etc/passwd')
 
   # 5. Test path traversal attempt (absolute file://)
-  with pytest.raises(RuntimeError, match="Security Error"):
-    directive._resolve_url("file:///etc/passwd")
+  with pytest.raises(RuntimeError, match='Security Error'):
+    directive._resolve_url('file:///etc/passwd')
 
   # 6. Test absolute path outside srcdir (as seen by Sphinx)
   # "/../etc/passwd" -> joined with srcdir "/app/docs" -> "/etc/passwd"
-  with pytest.raises(RuntimeError, match="Security Error"):
-    directive._resolve_url("/../etc/passwd")
+  with pytest.raises(RuntimeError, match='Security Error'):
+    directive._resolve_url('/../etc/passwd')
 
   # 7. Test http/https are still allowed
   assert directive._resolve_url('http://example.com') == 'http://example.com'
@@ -61,13 +61,13 @@ def cleanup_mock():
     del _PlaywrightDirective.env
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
   # Manual debug
   directive = _PlaywrightDirective.__new__(_PlaywrightDirective)
   env = MagicMock()
-  env.srcdir = "/app/docs"
-  env.docname = "index"
-  env.doc2path.return_value = "/app/docs/index.rst"
+  env.srcdir = '/app/docs'
+  env.docname = 'index'
+  env.doc2path.return_value = '/app/docs/index.rst'
   type(directive).env = PropertyMock(return_value=env)
   directive._evaluate_substitutions = lambda x: x
 
@@ -85,12 +85,12 @@ if __name__ == "__main__":
   except RuntimeError as e:
     print(f'PASSED: Caught expected error: {e}')
 
-  print("Testing allowed relative path...")
+  print('Testing allowed relative path...')
   try:
-    res = directive._resolve_url("./local.html")
-    print(f"PASSED: Result: {res}")
+    res = directive._resolve_url('./local.html')
+    print(f'PASSED: Result: {res}')
   except Exception as e:
-    print(f"FAILED: Caught unexpected error: {e}")
+    print(f'FAILED: Caught unexpected error: {e}')
 
   # Clean up for next run if it's imported
   del _PlaywrightDirective.env
