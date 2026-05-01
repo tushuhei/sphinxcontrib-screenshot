@@ -268,6 +268,25 @@ class _PlaywrightDirective(SphinxDirective):
           'Only HTTP/HTTPS/FILE URLs or root/document-relative file paths ' +
           'are supported.')
 
+    if scheme == 'file':
+      # Ensure file access is restricted to the Sphinx source directory.
+      import urllib.request
+      parsed_url = urlparse(url_or_filepath)
+      # url2pathname handles platform-specific path conversion (e.g. file:///C:/)
+      filepath = urllib.request.url2pathname(parsed_url.path)
+      abs_filepath = os.path.abspath(os.path.normpath(filepath))
+      abs_srcdir = os.path.abspath(self.env.srcdir)
+      try:
+        if os.path.commonpath([abs_srcdir, abs_filepath]) != abs_srcdir:
+          raise RuntimeError(
+              f'Security Error: Access to file {url_or_filepath} is '
+              f'restricted to the Sphinx source directory ({abs_srcdir}).')
+      except ValueError:
+        # This can happen on Windows if paths are on different drives.
+        raise RuntimeError(
+            f'Security Error: Access to file {url_or_filepath} is '
+            f'restricted to the Sphinx source directory ({abs_srcdir}).')
+
     return url_or_filepath
 
   def _resolve_context_builder(self, context_name: str) -> ContextBuilder:

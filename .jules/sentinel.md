@@ -1,0 +1,6 @@
+## 2026-05-21 - Path Traversal Vulnerability in file:// URL handling
+**Vulnerability:** The `_resolve_url` method in `_common.py` did not validate that resolved `file://` URLs or relative paths pointing to local files were contained within the Sphinx source directory. This allowed a malicious or misconfigured Sphinx project to take screenshots of sensitive local files (e.g., `/etc/passwd`) by providing absolute `file://` URLs or using `../` traversal in relative paths.
+
+**Learning:** Path resolution logic that converts relative paths to absolute URLs (like `file://`) must explicitly verify that the final path is within an allowed boundary (e.g., the project root). Simply normalizing the path is not enough, as traversal sequences can still escape the intended directory. Also, `urlparse` might not handle platform-specific path conventions for `file://` URLs as well as `urllib.request.url2pathname`.
+
+**Prevention:** Always use `os.path.commonpath` or `Path.relative_to` to verify that a resolved file path is contained within the expected base directory. Integrate these checks at the end of the resolution process to ensure all potential bypasses (relative paths, absolute paths, URLs) are covered.
