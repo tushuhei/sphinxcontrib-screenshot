@@ -18,7 +18,9 @@ import importlib
 import json
 import os
 import typing
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from urllib.parse import urlparse
 
 from docutils import nodes
@@ -249,26 +251,56 @@ class _PlaywrightDirective(SphinxDirective):
     file paths are converted to ``file://`` URLs. Only http/https/file
     schemes are accepted.
     """
-    docdir = os.path.dirname(self.env.doc2path(self.env.docname))
     url_or_filepath = self._evaluate_substitutions(raw_path)
-    scheme = urlparse(url_or_filepath).scheme
+    parsed = urlparse(url_or_filepath)
+    scheme = parsed.scheme
 
-    if scheme == '':
-      if url_or_filepath.startswith('/'):
-        url_or_filepath = os.path.join(self.env.srcdir,
-                                       url_or_filepath.lstrip('/'))
+    # On Windows, drive letters (e.g., C:) are misidentified as schemes.
+    if os.name == 'nt' and len(scheme) == 1 and scheme.isalpha():
+      scheme = ''
+
+    if scheme in {'http', 'https'}:
+      return url_or_filepath
+
+    if scheme == 'file' or scheme == '':
+      if scheme == 'file':
+        # url2pathname handles file:///C:/foo -> C:\foo
+        path_str = urllib.request.url2pathname(parsed.path)
+        if parsed.netloc:
+          if os.name == 'nt' and len(
+              parsed.netloc) == 2 and parsed.netloc[1] == ':':
+            target_path = Path(parsed.netloc + path_str)
+          else:
+            prefix = '\\\\' if os.name == 'nt' else ''
+            target_path = Path(prefix + parsed.netloc + path_str)
+        else:
+          target_path = Path(path_str)
       else:
-        url_or_filepath = os.path.join(docdir, url_or_filepath)
-      url_or_filepath = "file://" + os.path.normpath(url_or_filepath)
-      scheme = 'file'
+        if url_or_filepath.startswith('/'):
+          target_path = Path(self.env.srcdir) / url_or_filepath.lstrip('/')
+        else:
+          docdir = Path(self.env.doc2path(self.env.docname)).parent
+          target_path = docdir / url_or_filepath
 
-    if scheme not in {'http', 'https', 'file'}:
-      raise RuntimeError(
-          f'Invalid URL: {url_or_filepath}. ' +
-          'Only HTTP/HTTPS/FILE URLs or root/document-relative file paths ' +
-          'are supported.')
+      try:
+        # Resolve symlinks and .. segments for robust containment check.
+        abs_target = Path(target_path).resolve()
+        abs_srcdir = Path(self.env.srcdir).resolve()
 
-    return url_or_filepath
+        if not abs_target.is_relative_to(abs_srcdir):
+          raise RuntimeError(
+              f'Security Error: Access to {url_or_filepath} is restricted '
+              f'to the Sphinx source directory ({abs_srcdir}).')
+
+        return abs_target.as_uri()
+      except (ValueError, RuntimeError, OSError) as e:
+        if isinstance(e, RuntimeError) and 'Security Error' in str(e):
+          raise
+        raise RuntimeError(
+            f'Security Error: Access to {url_or_filepath} is restricted '
+            f'to the Sphinx source directory ({self.env.srcdir}).')
+
+    raise RuntimeError(f'Invalid URL: {url_or_filepath}')
 
   def _resolve_context_builder(self, context_name: str) -> ContextBuilder:
     """Resolve a context name to a callable, or None if unset."""
