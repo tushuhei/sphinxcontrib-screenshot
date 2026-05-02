@@ -283,19 +283,16 @@ class _PlaywrightDirective(SphinxDirective):
           target_path = docdir / url_or_filepath
 
       try:
-        # Use realpath and commonpath for robust containment check.
-        # This handles symlinks and is case-insensitive where appropriate.
-        abs_target = os.path.realpath(str(target_path))
-        abs_srcdir = os.path.realpath(str(self.env.srcdir))
+        # Resolve symlinks and .. segments for robust containment check.
+        abs_target = Path(target_path).resolve()
+        abs_srcdir = Path(self.env.srcdir).resolve()
 
-        if os.path.commonpath(
-            [os.path.normcase(abs_srcdir),
-             os.path.normcase(abs_target)]) != os.path.normcase(abs_srcdir):
+        if not abs_target.is_relative_to(abs_srcdir):
           raise RuntimeError(
               f'Security Error: Access to {url_or_filepath} is restricted '
               f'to the Sphinx source directory ({abs_srcdir}).')
 
-        return Path(abs_target).as_uri()
+        return abs_target.as_uri()
       except (ValueError, RuntimeError, OSError) as e:
         if isinstance(e, RuntimeError) and 'Security Error' in str(e):
           raise

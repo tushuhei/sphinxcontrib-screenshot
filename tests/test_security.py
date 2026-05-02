@@ -1,3 +1,4 @@
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, PropertyMock
 
@@ -12,7 +13,6 @@ def test_resolve_url_security():
   env = MagicMock()
 
   # Create a real temporary directory for reliable resolution testing
-  import tempfile
   with tempfile.TemporaryDirectory() as tmp_dir:
     srcdir = Path(tmp_dir).resolve()
     env.srcdir = str(srcdir)
@@ -72,45 +72,3 @@ def cleanup_mock():
   yield
   if hasattr(_PlaywrightDirective, 'env'):
     del _PlaywrightDirective.env
-
-
-if __name__ == '__main__':
-  # Manual debug setup
-  directive = _PlaywrightDirective.__new__(_PlaywrightDirective)
-  env = MagicMock()
-
-  import tempfile
-  with tempfile.TemporaryDirectory() as tmp_dir:
-    srcdir = Path(tmp_dir).resolve()
-    env.srcdir = str(srcdir)
-    env.docname = 'index'
-    index_rst = srcdir / 'index.rst'
-    env.doc2path.return_value = str(index_rst)
-    type(directive).env = PropertyMock(return_value=env)
-    directive._evaluate_substitutions = lambda x: x
-
-    print('Testing relative path traversal...')
-    try:
-      res = directive._resolve_url('../../etc/passwd')
-      print(f'FAILED: Result: {res}')
-    except RuntimeError as e:
-      print(f'PASSED: Caught expected error: {e}')
-
-    print('Testing absolute file:// traversal...')
-    try:
-      res = directive._resolve_url('file:///etc/passwd')
-      print(f'FAILED: Result: {res}')
-    except RuntimeError as e:
-      print(f'PASSED: Caught expected error: {e}')
-
-    print('Testing allowed relative path...')
-    try:
-      local_html = srcdir / 'local.html'
-      local_html.touch()
-      res = directive._resolve_url('./local.html')
-      print(f'PASSED: Result: {res}')
-    except Exception as e:
-      print(f'FAILED: Caught unexpected error: {e}')
-
-  # Clean up
-  del _PlaywrightDirective.env
