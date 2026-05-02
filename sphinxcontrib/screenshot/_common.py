@@ -286,19 +286,19 @@ class _PlaywrightDirective(SphinxDirective):
         # Resolve symlinks and .. segments for robust containment check.
         abs_target = Path(target_path).resolve()
         abs_srcdir = Path(self.env.srcdir).resolve()
-
-        if not abs_target.is_relative_to(abs_srcdir):
-          raise RuntimeError(
-              f'Security Error: Access to {url_or_filepath} is restricted '
-              f'to the Sphinx source directory ({abs_srcdir}).')
-
-        return abs_target.as_uri()
-      except (ValueError, RuntimeError, OSError) as e:
-        if isinstance(e, RuntimeError) and 'Security Error' in str(e):
-          raise
+      except (ValueError, RuntimeError, OSError):
+        # If resolution fails, treat it as a security violation to be safe.
         raise RuntimeError(
             f'Security Error: Access to {url_or_filepath} is restricted '
             f'to the Sphinx source directory ({self.env.srcdir}).')
+
+      # Verify the resolved path is within the Sphinx source directory.
+      if not abs_target.is_relative_to(abs_srcdir):
+        raise RuntimeError(
+            f'Security Error: Access to {url_or_filepath} is restricted '
+            f'to the Sphinx source directory ({abs_srcdir}).')
+
+      return abs_target.as_uri()
 
     raise RuntimeError(f'Invalid URL: {url_or_filepath}')
 
