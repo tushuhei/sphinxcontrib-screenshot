@@ -20,21 +20,23 @@ def test_resolve_url_security():
   # We need to mock _evaluate_substitutions as well
   directive._evaluate_substitutions = lambda x: x
 
+  from pathlib import Path
+
   # 1. Test allowed file path within srcdir
   allowed_path = '/image.html'
   resolved = directive._resolve_url(allowed_path)
-  assert resolved == 'file:///app/docs/image.html'
+  assert resolved == Path('/app/docs/image.html').resolve().as_uri()
 
   # 2. Test relative path within srcdir
   resolved = directive._resolve_url('./local.html')
-  assert resolved == 'file:///app/docs/local.html'
+  assert resolved == Path('/app/docs/local.html').resolve().as_uri()
 
   # 3. Test absolute file:// URL within srcdir
-  resolved = directive._resolve_url('file:///app/docs/image.html')
-  assert resolved == 'file:///app/docs/image.html'
+  target = Path('/app/docs/image.html').resolve().as_uri()
+  resolved = directive._resolve_url(target)
+  assert resolved == target
 
   # 4. Test path traversal attempt (relative)
-  # "../../etc/passwd" relative to docdir "/app/docs" -> "/etc/passwd"
   with pytest.raises(RuntimeError, match='Security Error'):
     directive._resolve_url('../../etc/passwd')
 
@@ -42,8 +44,7 @@ def test_resolve_url_security():
   with pytest.raises(RuntimeError, match='Security Error'):
     directive._resolve_url('file:///etc/passwd')
 
-  # 6. Test absolute path outside srcdir (as seen by Sphinx)
-  # "/../etc/passwd" -> joined with srcdir "/app/docs" -> "/etc/passwd"
+  # 6. Test absolute path outside srcdir
   with pytest.raises(RuntimeError, match='Security Error'):
     directive._resolve_url('/../etc/passwd')
 

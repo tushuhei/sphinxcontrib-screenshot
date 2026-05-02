@@ -268,37 +268,52 @@ class _PlaywrightDirective(SphinxDirective):
           'Only HTTP/HTTPS/FILE URLs or root/document-relative file paths ' +
           'are supported.')
 
-    if scheme == 'file':
-      # Ensure file access is restricted to the Sphinx source directory.
-      import urllib.request
-      parsed_url = urlparse(url_or_filepath)
-      # url2pathname handles platform-specific path conversion
-      # (e.g. file:///C:/). Note: parsed_url.path is used as url2pathname
-      # expects the path component of the URL.
-      filepath = urllib.request.url2pathname(parsed_url.path)
-      # If netloc is present (e.g. file://host/path), it might be a UNC path
-      # on Windows. url2pathname doesn't always handle netloc.
-      if parsed_url.netloc:
-        # Basic UNC support or just prepending netloc if it looks like a path.
-        # This is complex and usually file:// URLs in Sphinx are local.
-        pass
+    # On Windows, drive letters are misidentified as schemes.
+    if os.name == 'nt' and len(scheme) == 1 and scheme.isalpha():
+      scheme = ''
 
-      abs_filepath = os.path.abspath(os.path.normpath(filepath))
-      abs_srcdir = os.path.abspath(self.env.srcdir)
+    if scheme in {'http', 'https'}:
+      return url_or_filepath
+
+    if scheme == 'file' or scheme == '':
+      import urllib.request
+      from pathlib import Path
+      if scheme == 'file':
+        # url2pathname handles file:///C:/foo -> C:\foo
+        parsed = urlparse(url_or_filepath)
+        path_str = urllib.request.url2pathname(parsed.path)
+        if parsed.netloc:
+          if os.name == 'nt' and len(
+              parsed.netloc) == 2 and parsed.netloc[1] == ':':
+            filepath = Path(parsed.netloc + path_str)
+          else:
+            filepath = Path('\\\\' + parsed.netloc + path_str)
+        else:
+          filepath = Path(path_str)
+      else:
+        if url_or_filepath.startswith('/'):
+          filepath = Path(self.env.srcdir) / url_or_filepath.lstrip('/')
+        else:
+          docdir = Path(self.env.doc2path(self.env.docname)).parent
+          filepath = docdir / url_or_filepath
+
       try:
-        # commonpath returns the longest common sub-path. If it's the
-        # srcdir itself, then abs_filepath is within srcdir.
-        if os.path.commonpath([abs_srcdir, abs_filepath]) != abs_srcdir:
+        abs_filepath = filepath.resolve()
+        abs_srcdir = Path(self.env.srcdir).resolve()
+        # is_relative_to is available in Python 3.9+
+        if not abs_filepath.is_relative_to(abs_srcdir):
           raise RuntimeError(
               f'Security Error: Access to file {url_or_filepath} is '
               f'restricted to the Sphinx source directory ({abs_srcdir}).')
-      except ValueError:
-        # This can happen on Windows if paths are on different drives.
+        return abs_filepath.as_uri()
+      except (ValueError, RuntimeError) as e:
+        if isinstance(e, RuntimeError) and 'Security Error' in str(e):
+          raise
         raise RuntimeError(
             f'Security Error: Access to file {url_or_filepath} is '
-            f'restricted to the Sphinx source directory ({abs_srcdir}).')
+            f'restricted to the Sphinx source directory ({self.env.srcdir}).')
 
-    return url_or_filepath
+    raise RuntimeError(f'Invalid URL: {url_or_filepath}')
 
   def _resolve_context_builder(self, context_name: str) -> ContextBuilder:
     """Resolve a context name to a callable, or None if unset."""
