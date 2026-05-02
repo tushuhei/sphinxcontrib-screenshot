@@ -18,7 +18,9 @@ import importlib
 import json
 import os
 import typing
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from urllib.parse import urlparse
 
 from docutils import nodes
@@ -249,26 +251,11 @@ class _PlaywrightDirective(SphinxDirective):
     file paths are converted to ``file://`` URLs. Only http/https/file
     schemes are accepted.
     """
-    docdir = os.path.dirname(self.env.doc2path(self.env.docname))
     url_or_filepath = self._evaluate_substitutions(raw_path)
-    scheme = urlparse(url_or_filepath).scheme
+    parsed = urlparse(url_or_filepath)
+    scheme = parsed.scheme
 
-    if scheme == '':
-      if url_or_filepath.startswith('/'):
-        url_or_filepath = os.path.join(self.env.srcdir,
-                                       url_or_filepath.lstrip('/'))
-      else:
-        url_or_filepath = os.path.join(docdir, url_or_filepath)
-      url_or_filepath = "file://" + os.path.normpath(url_or_filepath)
-      scheme = 'file'
-
-    if scheme not in {'http', 'https', 'file'}:
-      raise RuntimeError(
-          f'Invalid URL: {url_or_filepath}. ' +
-          'Only HTTP/HTTPS/FILE URLs or root/document-relative file paths ' +
-          'are supported.')
-
-    # On Windows, drive letters are misidentified as schemes.
+    # On Windows, drive letters (e.g., C:) are misidentified as schemes.
     if os.name == 'nt' and len(scheme) == 1 and scheme.isalpha():
       scheme = ''
 
@@ -276,42 +263,45 @@ class _PlaywrightDirective(SphinxDirective):
       return url_or_filepath
 
     if scheme == 'file' or scheme == '':
-      import urllib.request
-      from pathlib import Path
       if scheme == 'file':
         # url2pathname handles file:///C:/foo -> C:\foo
-        parsed = urlparse(url_or_filepath)
         path_str = urllib.request.url2pathname(parsed.path)
         if parsed.netloc:
           if os.name == 'nt' and len(
               parsed.netloc) == 2 and parsed.netloc[1] == ':':
-            filepath = Path(parsed.netloc + path_str)
+            target_path = Path(parsed.netloc + path_str)
           else:
-            filepath = Path('\\\\' + parsed.netloc + path_str)
+            prefix = '\\\\' if os.name == 'nt' else ''
+            target_path = Path(prefix + parsed.netloc + path_str)
         else:
-          filepath = Path(path_str)
+          target_path = Path(path_str)
       else:
         if url_or_filepath.startswith('/'):
-          filepath = Path(self.env.srcdir) / url_or_filepath.lstrip('/')
+          target_path = Path(self.env.srcdir) / url_or_filepath.lstrip('/')
         else:
           docdir = Path(self.env.doc2path(self.env.docname)).parent
-          filepath = docdir / url_or_filepath
+          target_path = docdir / url_or_filepath
 
       try:
-        abs_filepath = filepath.resolve()
-        abs_srcdir = Path(self.env.srcdir).resolve()
-        # is_relative_to is available in Python 3.9+
-        if not abs_filepath.is_relative_to(abs_srcdir):
+        # Use realpath and commonpath for robust containment check.
+        # This handles symlinks and is case-insensitive where appropriate.
+        abs_target = os.path.realpath(str(target_path))
+        abs_srcdir = os.path.realpath(str(self.env.srcdir))
+
+        if os.path.commonpath(
+            [os.path.normcase(abs_srcdir),
+             os.path.normcase(abs_target)]) != os.path.normcase(abs_srcdir):
           raise RuntimeError(
-              f'Security Error: Access to file {url_or_filepath} is '
-              f'restricted to the Sphinx source directory ({abs_srcdir}).')
-        return abs_filepath.as_uri()
-      except (ValueError, RuntimeError) as e:
+              f'Security Error: Access to {url_or_filepath} is restricted '
+              f'to the Sphinx source directory ({abs_srcdir}).')
+
+        return Path(abs_target).as_uri()
+      except (ValueError, RuntimeError, OSError) as e:
         if isinstance(e, RuntimeError) and 'Security Error' in str(e):
           raise
         raise RuntimeError(
-            f'Security Error: Access to file {url_or_filepath} is '
-            f'restricted to the Sphinx source directory ({self.env.srcdir}).')
+            f'Security Error: Access to {url_or_filepath} is restricted '
+            f'to the Sphinx source directory ({self.env.srcdir}).')
 
     raise RuntimeError(f'Invalid URL: {url_or_filepath}')
 
