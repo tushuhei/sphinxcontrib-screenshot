@@ -4,3 +4,10 @@
 **Learning:** Path resolution logic that converts relative paths to absolute URLs (like `file://`) must explicitly verify that the final path is within an allowed boundary (e.g., the project root). Simply normalizing the path is not enough, as traversal sequences can still escape the intended directory. Also, `urlparse` might not handle platform-specific path conventions for `file://` URLs as well as `urllib.request.url2pathname`.
 
 **Prevention:** Always use `os.path.commonpath` or `Path.relative_to` to verify that a resolved file path is contained within the expected base directory. Integrate these checks at the end of the resolution process to ensure all potential bypasses (relative paths, absolute paths, URLs) are covered.
+
+## 2026-05-08 - Information Disclosure in Error Messages
+**Vulnerability:** Error messages (RuntimeError) raised during path resolution and Playwright operations were leaking sensitive information, including the absolute path of the Sphinx source directory, internal function names, and raw JavaScript `interactions` scripts which could contain credentials or session tokens.
+
+**Learning:** Exception messages that bubble up to build logs or user-facing reports should be sanitized. While descriptive errors are helpful for debugging, they should not include server-side filesystem paths or raw input that might contain secrets.
+
+**Prevention:** Use generic error messages for security-related failures. Instead of including the problematic value or the absolute path in the error string, provide a clear explanation of the policy violation. Ensure that user-provided scripts or data are never echoed back in exceptions if they could contain sensitive information.

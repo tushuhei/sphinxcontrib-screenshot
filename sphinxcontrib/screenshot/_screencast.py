@@ -248,8 +248,11 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
 
             crop_box = (x, y, w, h)
         except PlaywrightTimeoutError as e:
-          raise RuntimeError('Timeout error occurred at %s in executing\n%s' %
-                             (url, interactions)) from e
+          # Do not leak the interactions string in the error message as it
+          # may contain sensitive data (e.g. passwords or tokens).
+          raise RuntimeError(
+              f'Timeout error occurred at {url} during page interactions.'
+          ) from e
 
         # Keep a reference to the video before closing — page.close() and
         # context.close() are required to flush the .webm to disk before
