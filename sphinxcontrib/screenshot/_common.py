@@ -288,15 +288,17 @@ class _PlaywrightDirective(SphinxDirective):
         abs_srcdir = Path(self.env.srcdir).resolve()
       except (ValueError, RuntimeError, OSError):
         # If resolution fails, treat it as a security violation to be safe.
+        # Do not include the absolute path in the error message for security.
         raise RuntimeError(
             f'Security Error: Access to {url_or_filepath} is restricted '
-            f'to the Sphinx source directory ({self.env.srcdir}).')
+            'to the Sphinx source directory.')
 
       # Verify the resolved path is within the Sphinx source directory.
       if not abs_target.is_relative_to(abs_srcdir):
+        # Do not include the absolute path in the error message for security.
         raise RuntimeError(
             f'Security Error: Access to {url_or_filepath} is restricted '
-            f'to the Sphinx source directory ({abs_srcdir}).')
+            'to the Sphinx source directory.')
 
       return abs_target.as_uri()
 
