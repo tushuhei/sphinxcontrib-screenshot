@@ -156,9 +156,10 @@ def _prepare_context(
       context = _invoke_context_builder(context_builder, browser, url,
                                         color_scheme, record_video_dir)
     except PlaywrightTimeoutError:
+      # Do not leak the internal function name in the error message.
       raise RuntimeError(
-          'Timeout error occurred at %s in executing py init script %s' %
-          (url, context_builder.__name__))
+          f'Timeout error occurred at {url} in executing the custom context '
+          'builder.')
   else:
     new_context_kwargs: typing.Dict[str, typing.Any] = dict(
         color_scheme=color_scheme,
@@ -288,15 +289,17 @@ class _PlaywrightDirective(SphinxDirective):
         abs_srcdir = Path(self.env.srcdir).resolve()
       except (ValueError, RuntimeError, OSError):
         # If resolution fails, treat it as a security violation to be safe.
+        # Do not leak the absolute path in the error message.
         raise RuntimeError(
             f'Security Error: Access to {url_or_filepath} is restricted '
-            f'to the Sphinx source directory ({self.env.srcdir}).')
+            'to the Sphinx source directory.')
 
       # Verify the resolved path is within the Sphinx source directory.
       if not abs_target.is_relative_to(abs_srcdir):
+        # Do not leak the absolute path in the error message.
         raise RuntimeError(
             f'Security Error: Access to {url_or_filepath} is restricted '
-            f'to the Sphinx source directory ({abs_srcdir}).')
+            'to the Sphinx source directory.')
 
       return abs_target.as_uri()
 

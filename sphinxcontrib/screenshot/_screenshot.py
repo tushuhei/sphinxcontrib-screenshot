@@ -199,8 +199,10 @@ class ScreenshotDirective(_PlaywrightDirective, Figure):
         _navigate(page, url, valid_codes, expected_status_codes, location)
         _run_interactions(page, interactions)
       except PlaywrightTimeoutError:
-        raise RuntimeError('Timeout error occurred at %s in executing\n%s' %
-                           (url, interactions))
+        # Do not leak the interactions string in the error message as it
+        # may contain sensitive data (e.g. passwords or tokens).
+        raise RuntimeError(
+            f'Timeout error occurred at {url} during page interactions.')
       if locator:
         if any(locator_padding):
           # Compute the bbox manually so we can widen it by locator_padding

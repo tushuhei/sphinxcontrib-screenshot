@@ -48,17 +48,23 @@ def test_resolve_url_security():
 
     # 4. Test path traversal attempt (relative)
     # We use a path that is guaranteed to be outside the tmp_dir
-    with pytest.raises(RuntimeError, match='Security Error'):
+    with pytest.raises(RuntimeError, match='Security Error') as excinfo:
       directive._resolve_url('../../etc/passwd')
+    # Verify that absolute path is NOT leaked in the error message
+    assert str(srcdir) not in str(excinfo.value)
 
     # 5. Test path traversal attempt (absolute file://)
     # On Windows, /etc/passwd doesn't exist, but we just want to see it blocked
-    with pytest.raises(RuntimeError, match='Security Error'):
+    with pytest.raises(RuntimeError, match='Security Error') as excinfo:
       directive._resolve_url('file:///etc/passwd')
+    # Verify that absolute path is NOT leaked in the error message
+    assert str(srcdir) not in str(excinfo.value)
 
     # 6. Test absolute path outside srcdir
-    with pytest.raises(RuntimeError, match='Security Error'):
+    with pytest.raises(RuntimeError, match='Security Error') as excinfo:
       directive._resolve_url('/../etc/passwd')
+    # Verify that absolute path is NOT leaked in the error message
+    assert str(srcdir) not in str(excinfo.value)
 
     # 7. Test http/https are still allowed
     assert directive._resolve_url('http://example.com') == 'http://example.com'
