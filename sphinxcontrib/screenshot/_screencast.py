@@ -28,7 +28,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 from sphinx.util import logging as sphinx_logging
 
-from ._common import (ContextBuilder, _hash_filename, _navigate,
+from ._common import (ContextBuilder, _hash_filename, _mask_url, _navigate,
                       _PlaywrightDirective, _prepare_context,
                       _run_interactions, parse_expected_status_codes,
                       parse_locator_padding)
@@ -225,7 +225,7 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
             if bbox is None:
               raise RuntimeError(
                   f'Locator {locator!r} did not match a visible element on '
-                  f'{url}.')
+                  f'{_mask_url(url)}.')
 
             # Floor x/y and ceil w/h so the bounding box always encloses the
             # element (the opposite would shave off sub-pixel edges). Clamp
@@ -251,8 +251,8 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
           # Do not leak the interactions string in the error message as it
           # may contain sensitive data (e.g. passwords or tokens).
           raise RuntimeError(
-              f'Timeout error occurred at {url} during page interactions.'
-          ) from e
+              f'Timeout error occurred at {_mask_url(url)} during page '
+              'interactions.') from e
 
         # Keep a reference to the video before closing — page.close() and
         # context.close() are required to flush the .webm to disk before

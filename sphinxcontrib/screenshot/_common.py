@@ -117,6 +117,13 @@ def _hash_filename(parts: typing.Iterable[typing.Any], extension: str) -> str:
   return hashlib.md5(payload.encode()).hexdigest() + extension
 
 
+def _mask_url(url: str) -> str:
+  """Mask local file URLs to avoid leaking absolute paths in error messages."""
+  if url.lower().startswith('file://'):
+    return '<local file>'
+  return url
+
+
 def _invoke_context_builder(
     context_builder: typing.Callable, browser: Browser, url: str,
     color_scheme: ColorScheme,
@@ -158,8 +165,8 @@ def _prepare_context(
     except PlaywrightTimeoutError:
       # Do not leak the internal function name in the error message.
       raise RuntimeError(
-          f'Timeout error occurred at {url} in executing the custom context '
-          'builder.')
+          f'Timeout error occurred at {_mask_url(url)} in executing the '
+          'custom context builder.')
   else:
     new_context_kwargs: typing.Dict[str, typing.Any] = dict(
         color_scheme=color_scheme,
@@ -195,7 +202,7 @@ def _navigate(page, url: str, valid_codes: typing.List[int],
 
   if response and response.status not in valid_codes:
     logger.warning(
-        f'Page {url} returned status code {response.status}, '
+        f'Page {_mask_url(url)} returned status code {response.status}, '
         f'expected one of: {expected_status_codes}',
         type='screenshot',
         subtype='status_code',

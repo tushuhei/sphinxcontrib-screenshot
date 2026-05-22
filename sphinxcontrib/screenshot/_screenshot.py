@@ -23,7 +23,7 @@ from playwright._impl._helper import ColorScheme
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
-from ._common import (ContextBuilder, _hash_filename, _navigate,
+from ._common import (ContextBuilder, _hash_filename, _mask_url, _navigate,
                       _PlaywrightDirective, _prepare_context,
                       _run_interactions, parse_expected_status_codes,
                       parse_locator_padding)
@@ -202,7 +202,8 @@ class ScreenshotDirective(_PlaywrightDirective, Figure):
         # Do not leak the interactions string in the error message as it
         # may contain sensitive data (e.g. passwords or tokens).
         raise RuntimeError(
-            f'Timeout error occurred at {url} during page interactions.')
+            f'Timeout error occurred at {_mask_url(url)} during page '
+            'interactions.')
       if locator:
         if any(locator_padding):
           # Compute the bbox manually so we can widen it by locator_padding
@@ -219,7 +220,7 @@ class ScreenshotDirective(_PlaywrightDirective, Figure):
           if bbox is None:
             raise RuntimeError(
                 f'Locator {locator!r} did not match a visible element on '
-                f'{url}.')
+                f'{_mask_url(url)}.')
           x = max(0, math.floor(bbox['x']) - pad_left)
           y = max(0, math.floor(bbox['y']) - pad_top)
           w = min(

@@ -1,3 +1,10 @@
+## 2026-05-22 - Absolute Path Leakage via file:// URLs in Exceptions
+**Vulnerability:** Resolved `file://` URLs containing absolute paths were being included in `RuntimeError` messages and log warnings when operations like navigation or element location failed. This disclosed the build server's internal directory structure.
+
+**Learning:** Normalizing or resolving paths to absolute URLs is necessary for internal logic but these URLs must be sanitized before being included in any output that might reach a user or a persistent log.
+
+**Prevention:** Use a dedicated sanitization helper like `_mask_url` to redact sensitive schemes (like `file://`) from URLs before they are interpolated into exception messages or log entries.
+
 ## 2026-05-21 - Path Traversal Vulnerability in file:// URL handling
 **Vulnerability:** The `_resolve_url` method in `_common.py` did not validate that resolved `file://` URLs or relative paths pointing to local files were contained within the Sphinx source directory. This allowed a malicious or misconfigured Sphinx project to take screenshots of sensitive local files (e.g., `/etc/passwd`) by providing absolute `file://` URLs or using `../` traversal in relative paths.
 
