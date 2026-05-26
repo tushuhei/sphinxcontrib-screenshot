@@ -45,8 +45,9 @@ def test_default(app: SphinxTestApp) -> None:
     imgsrc_before_interaction = app.outdir / imgs[1]['src']
     imgsrc_after_interaction = app.outdir / imgs[2]['src']
     assert imgsrc_before_interaction != imgsrc_after_interaction
-    assert list(Image.open(imgsrc_before_interaction).getdata()) != list(
-        Image.open(imgsrc_after_interaction).getdata())
+    assert list(
+        Image.open(imgsrc_before_interaction).get_flattened_data()) != list(
+            Image.open(imgsrc_after_interaction).get_flattened_data())
 
     # High reso image should have a larger size.
     imgsrc_standard = app.outdir / imgs[0]['src']
@@ -66,8 +67,8 @@ def test_default(app: SphinxTestApp) -> None:
     imgsrc_relative = app.outdir / "sections" / imgs[0]['src']
     imgsrc_absolute = app.outdir / "sections" / imgs[1]['src']
     assert imgsrc_relative != imgsrc_absolute
-    assert list(Image.open(imgsrc_relative).getdata()) == list(
-        Image.open(imgsrc_absolute).getdata())
+    assert list(Image.open(imgsrc_relative).get_flattened_data()) == list(
+        Image.open(imgsrc_absolute).get_flattened_data())
 
   test_index()
   test_sections_index()

@@ -334,7 +334,7 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
     """
     poster_mode, poster_value = self._parse_poster()
 
-    builder_format = self.env.app.builder.format
+    builder_format = self.env._app.builder.format
     if builder_format != 'html':
       if poster_mode == 'explicit':
         # Reuse the figure machinery so the caption (parsed from the
@@ -420,7 +420,7 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
 
     screencast_init_script: str = self.env.config.screenshot_init_script or ''
 
-    sc_dirpath = os.path.join(self.env.app.outdir, '_static', 'screencasts')
+    sc_dirpath = os.path.join(self.env._app.outdir, '_static', 'screencasts')
     os.makedirs(sc_dirpath, exist_ok=True)
 
     raw_path = self.arguments[0]
@@ -544,9 +544,9 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
     # Compute src relative to the HTML output of the current doc, since the
     # screencast node has no Sphinx-side image-collection machinery to rewrite
     # the URI for us (unlike nodes.image used by ScreenshotDirective).
-    target_uri = self.env.app.builder.get_target_uri(self.env.docname)
+    target_uri = self.env._app.builder.get_target_uri(self.env.docname)
     out_doc_dir = os.path.dirname(
-        os.path.join(self.env.app.outdir, target_uri))
+        os.path.join(self.env._app.outdir, target_uri))
     rel_filepath = os.path.relpath(
         filepath, start=out_doc_dir).replace(os.sep, '/')
 
