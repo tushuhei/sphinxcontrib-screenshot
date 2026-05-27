@@ -261,7 +261,7 @@ class ScreenshotDirective(_PlaywrightDirective, Figure):
     screenshot_init_script: str = self.env.config.screenshot_init_script or ''
     docdir = os.path.dirname(self.env.doc2path(self.env.docname))
 
-    ss_dirpath = os.path.join(self.env.app.outdir, '_static', 'screenshots')
+    ss_dirpath = os.path.join(self.env._app.outdir, '_static', 'screenshots')
     os.makedirs(ss_dirpath, exist_ok=True)
 
     raw_path = self.arguments[0]
