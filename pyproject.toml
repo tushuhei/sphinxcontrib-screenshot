@@ -16,13 +16,11 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Operating System :: OS Independent",
     "License :: OSI Approved :: Apache Software License",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "playwright",
     "sphinx",
@@ -87,8 +85,6 @@ explicit_package_bases = true
 [tool.tox]
 requires = ["tox>=4.19"]
 env_list = [
-    "py310",
-    "py311",
     "py312",
     "py313",
     "py314",
