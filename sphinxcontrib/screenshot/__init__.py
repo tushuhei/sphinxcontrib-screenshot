@@ -156,9 +156,9 @@ def setup(app: Sphinx) -> Meta:
       'screencast_default_trim_start',
       None,
       'env',
-      description="Default for screencast :trim-start:. "
-      "None = no trim, 'auto' = timer-based, a number = seconds to trim. "
-      "Per-directive :trim-start: overrides this default.")
+      description="Default for screencast :trim-start:. None = no trim, a "
+      "number = seconds to drop from the start. Per-directive :trim-start: "
+      "overrides this default.")
   app.add_config_value(
       'screencast_default_poster',
       None,
@@ -167,6 +167,37 @@ def setup(app: Sphinx) -> Meta:
       "None = no poster, 'auto-start' = screenshot before interactions, "
       "'auto-end' = screenshot after interactions, or a URL/path. "
       "Per-directive :poster: overrides this default.")
+  app.add_config_value(
+      'screencast_default_ffmpeg_options',
+      None,
+      'env',
+      description="Default ffmpeg encoder options for the recording pass, "
+      "e.g. '-an -c:v libvpx-vp9 -lossless 1 -row-mt 1'. Only the encoder "
+      "portion: the PNG input, even-dimension pad and locator crop (-vf) are "
+      "injected automatically, so do not include -i or -vf. When unset the "
+      "pass encodes near-lossless VP8. Per-directive :ffmpeg-options: "
+      "overrides this default.")
+  app.add_config_value(
+      'screencast_default_ffmpeg_executable',
+      None,
+      'env',
+      description="Default path to a system ffmpeg binary used instead of "
+      "Playwright's bundled one. Required to enable encoders not shipped "
+      "with the bundled binary (VP9, H264, AV1, etc.). Per-directive "
+      ":ffmpeg-executable: overrides this default.")
+  app.add_config_value(
+      'screencast_default_fps',
+      None,
+      'env',
+      description="Default frame rate for the recorded video. Per-directive "
+      ":fps: overrides this default.")
+  app.add_config_value(
+      'screencast_default_output_extension',
+      None,
+      'env',
+      description="Default extension of the output file, without leading "
+      "``.`` (``webm``, ``mp4``, etc.). Per-directive :output-extension: "
+      "overrides this default.")
   app.connect('config-inited', setup_apps)
   app.connect('build-finished', teardown_apps)
   app.connect('build-finished', copy_static_files)

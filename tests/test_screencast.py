@@ -19,7 +19,9 @@ import pytest
 from bs4 import BeautifulSoup
 from sphinx.testing.util import SphinxTestApp
 
-from sphinxcontrib.screenshot._ffmpeg import _find_ffmpeg
+from sphinxcontrib.screenshot import setup as _screenshot_setup
+from sphinxcontrib.screenshot._ffmpeg import (DEFAULT_ENCODE, _find_ffmpeg,
+                                              decodes_png, encode_frames)
 
 
 def _video_dimensions(filepath):
@@ -138,7 +140,7 @@ def test_autoplay_forces_muted(app: SphinxTestApp, status: StringIO,
 @pytest.mark.sphinx('html', testroot='screencast-contexts')
 def test_custom_context_builder(app: SphinxTestApp, status: StringIO,
                                 warning: StringIO) -> None:
-  """A 4-args builder accepting ``record_video_dir`` records video."""
+  """A custom 3-args context builder records video via the CDP screencast."""
   app.build()
 
   soup = BeautifulSoup((app.outdir / "index.html").read_text(), "html.parser")
@@ -147,18 +149,6 @@ def test_custom_context_builder(app: SphinxTestApp, status: StringIO,
   src = video['src']
   assert (app.outdir / src).exists()
   assert (app.outdir / src).stat().st_size > 0
-
-
-@pytest.mark.sphinx('html', testroot='screencast-contexts-legacy')
-def test_legacy_context_builder_emits_error_and_skips(
-    app: SphinxTestApp, status: StringIO, warning: StringIO) -> None:
-  """A 3-args builder is detected early: error logged, directive skipped."""
-  app.build()
-  warn_text = warning.getvalue()
-  assert 'record_video_dir' in warn_text
-
-  soup = BeautifulSoup((app.outdir / "index.html").read_text(), "html.parser")
-  assert soup.find('video') is None
 
 
 @pytest.mark.sphinx('html', testroot='screencast-poster-auto')
@@ -228,7 +218,7 @@ def test_config_defaults_apply_to_flags(app: SphinxTestApp, status: StringIO,
 @pytest.mark.sphinx('html', testroot='screencast-trim')
 def test_trim_explicit(app: SphinxTestApp, status: StringIO,
                        warning: StringIO) -> None:
-  """``:trim-start: 0.5`` runs the ffmpeg post-process to a valid .webm."""
+  """``:trim-start:`` drops leading frames and still yields a valid .webm."""
   app.build()
 
   soup = BeautifulSoup((app.outdir / "index.html").read_text(), "html.parser")
@@ -296,3 +286,99 @@ def test_locator_padding(app: SphinxTestApp, status: StringIO,
   width, height = _video_dimensions(webm)
   assert 138 <= width <= 142, f'unexpected width {width}'
   assert 98 <= height <= 102, f'unexpected height {height}'
+
+
+@pytest.mark.sphinx('html', testroot='screencast-ffmpeg-options')
+def test_ffmpeg_options(app: SphinxTestApp, status: StringIO,
+                        warning: StringIO) -> None:
+  """``:ffmpeg-options:`` overrides the default encoder for the single pass."""
+  app.build()
+
+  soup = BeautifulSoup((app.outdir / "index.html").read_text(), "html.parser")
+  video = soup.find('video')
+  assert video is not None
+  webm = app.outdir / video['src']
+  assert webm.exists()
+  assert webm.stat().st_size > 0
+
+
+def test_config_values_registered() -> None:
+  """The ffmpeg config values are registered by setup()."""
+  source = open(_screenshot_setup.__code__.co_filename).read()
+  for name in ('screencast_default_ffmpeg_options',
+               'screencast_default_ffmpeg_executable',
+               'screencast_default_fps',
+               'screencast_default_output_extension'):
+    assert name in source, f'{name} is not registered in setup()'
+
+
+class _FakeProc:
+  returncode = 0
+
+  def communicate(self, input=None):  # noqa: A002 - mirrors Popen.communicate
+    return (b'', b'')
+
+
+def test_encode_frames_custom_options(monkeypatch) -> None:
+  """``encode_options`` replaces the encoder; crop and input stay injected."""
+  captured = {}
+
+  def fake_popen(cmd, **kwargs):
+    captured['cmd'] = cmd
+    return _FakeProc()
+
+  monkeypatch.setattr(subprocess, 'Popen', fake_popen)
+  encode_frames(
+      'ffmpeg', [(b'a', 0.0), (b'b', 0.1)],
+      'dst.webm',
+      25,
+      frame_format='png',
+      crop=(1, 2, 3, 4),
+      encode_options='-an -c:v libvpx-vp9 -lossless 1 -row-mt 1')
+
+  cmd = captured['cmd']
+  assert cmd[:8] == [
+      'ffmpeg', '-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate',
+      '25'
+  ]
+  assert cmd[8:12] == ['-c:v', 'png', '-i', 'pipe:0']  # PNG decoder
+  vf = cmd[cmd.index('-vf') + 1]
+  assert 'crop=3:4:1:2' in vf and 'pad=ceil(iw/2)*2:ceil(ih/2)*2' in vf
+  assert '-lossless' in cmd  # user encode options used
+  assert '-crf' not in cmd  # default VP8 block replaced, not appended
+  assert cmd[-1] == 'dst.webm'
+
+
+def test_encode_frames_default_vp8(monkeypatch) -> None:
+  """Without encode_options the pass encodes VP8; JPEG frames use mjpeg."""
+  captured = {}
+
+  def fake_popen(cmd, **kwargs):
+    captured['cmd'] = cmd
+    return _FakeProc()
+
+  monkeypatch.setattr(subprocess, 'Popen', fake_popen)
+  encode_frames('ffmpeg', [(b'a', 0.0)], 'dst.webm', 25, frame_format='jpeg')
+
+  cmd = captured['cmd']
+  assert cmd[8:12] == ['-c:v', 'mjpeg', '-i', 'pipe:0']  # JPEG decoder
+  assert 'libvpx' in cmd and '-crf' in cmd
+  assert DEFAULT_ENCODE.split()[0] in cmd
+
+
+def test_decodes_png(monkeypatch) -> None:
+  """``decodes_png`` parses the ffmpeg -decoders listing for a png decoder."""
+
+  def with_png(cmd, **kwargs):
+    out = b' V....D mjpeg  MJPEG\n VF...D png    PNG image\n'
+    return subprocess.CompletedProcess(cmd, 0, stdout=out, stderr=b'')
+
+  def without_png(cmd, **kwargs):
+    out = b' V....D mjpeg  MJPEG\n V....D libvpx VP8\n'
+    return subprocess.CompletedProcess(cmd, 0, stdout=out, stderr=b'')
+
+  monkeypatch.setattr(subprocess, 'run', with_png)
+  assert decodes_png('ffmpeg') is True
+
+  monkeypatch.setattr(subprocess, 'run', without_png)
+  assert decodes_png('ffmpeg') is False

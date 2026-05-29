@@ -305,12 +305,18 @@ page-setup options of :rst:dir:`screenshot` (``:browser:``,
 
         Scrolling the project page.
 
-The recording covers the load of the page, then the JavaScript interactions
-passed to ``:interactions:``, then closes. There is no separate
+Recording starts once the page has loaded and covers the JavaScript
+interactions passed to ``:interactions:``, then closes. There is no separate
 ``:duration:`` option: to keep the page busy after a click (e.g. to capture
 a CSS transition), keep awaiting in the JavaScript itself
 (``await new Promise(r => setTimeout(r, ms))``). Playwright awaits the
 returned Promise, so the video covers exactly what the script does.
+
+Frames are captured through the Chrome DevTools screencast (**chromium
+only**) and encoded by ffmpeg in a single pass. With Playwright's bundled
+ffmpeg the frames are JPEG q100 encoded to near-lossless VP8; pointing
+``:ffmpeg-executable:`` at a system ffmpeg switches capture to lossless PNG
+and unlocks lossless/VP9 output.
 
 Video options
 =============
@@ -340,18 +346,10 @@ Video options
     ``./auto-end`` or add an extension (``auto-end.png``).
 
 ``:trim-start:``
-    Trim the beginning of the recording. Three modes:
-
-    - **Absent**: no trim. The video covers the full Playwright context
-      lifecycle, including the initial about:blank flash.
-    - **Flag** (``:trim-start:`` with no value): automatic. The extension
-      measures the time between context creation and the end of page load
-      and trims that prefix.
-    - **Seconds** (``:trim-start: 1.5``): trim that many seconds off the
-      front.
-
-    Requires ffmpeg. Playwright already bundles one (downloaded by
-    ``playwright install``); a system ffmpeg on PATH is also accepted.
+    Drop the given number of seconds from the start of the recording
+    (``:trim-start: 1.5``). Absent or empty means no trim. Because recording
+    only starts once the page has loaded, there is no initial blank flash to
+    trim — this is for skipping a deliberate lead-in in your interactions.
 
 ``:locator:``
     Playwright selector. When set, the video is cropped to the bounding
@@ -364,6 +362,29 @@ Video options
     integers (1 = uniform; 2 = top/bottom + right/left; 3 = top + right/left
     + bottom; 4 = top + right + bottom + left). The padded box is clamped
     to the viewport.
+
+``:ffmpeg-options:``
+    ffmpeg **encoder** options for the recording pass, e.g.
+    ``-an -c:v libvpx-vp9 -lossless 1 -row-mt 1``. Only the encoder portion:
+    the image input, the even-dimension pad and the ``:locator:`` crop
+    (``-vf``) are injected automatically, so do not include ``-i`` or
+    ``-vf``. When unset, the pass encodes near-lossless VP8 (the only codec
+    the bundled ffmpeg supports). VP9/H264/AV1 or true lossless require a
+    system ffmpeg via ``:ffmpeg-executable:``.
+
+``:ffmpeg-executable:``
+    Path to a system ffmpeg binary to use instead of Playwright's bundled
+    one. The bundled binary only decodes mjpeg and encodes VP8, so capture
+    falls back to JPEG q100. A system ffmpeg that can decode PNG switches
+    capture to lossless PNG and enables VP9, H264, AV1 and lossless output
+    through ``:ffmpeg-options:``.
+
+``:fps:``
+    Frame rate for the recorded video. Defaults to ``25``.
+
+``:output-extension:``
+    Output container extension, without leading ``.`` (``webm``, ``mp4``,
+    …). Defaults to ``webm``.
 
 Caption
 =======
@@ -386,35 +407,31 @@ preserved as the caption of the fallback ``<image>`` node when an explicit
 Context builders and screencasts
 ================================
 
-If you use :ref:`screenshot_contexts <screenshot_contexts>`, your builder must
-accept a ``record_video_dir`` parameter to be usable with ``screencast``:
+If you use :ref:`screenshot_contexts <screenshot_contexts>`, the same
+three-argument builder works for ``screencast`` (recording no longer needs a
+``record_video_dir`` — frames are captured through the CDP screencast):
 
 .. code-block:: python
 
-    def logged_as_user(browser, url, color_scheme, record_video_dir):
+    def logged_as_user(browser, url, color_scheme):
         return browser.new_context(
             color_scheme=color_scheme,
-            record_video_dir=record_video_dir,
             storage_state="user.json",
         )
-
-Builders that don't accept ``record_video_dir`` are still called with three
-arguments by ``screenshot`` (full backwards compatibility) but raise a build
-error when used with ``screencast``.
 
 Limitations
 ===========
 
-- WebM only (Playwright's native video format). No mp4/h264, no audio.
+- **Chromium only.** Recording uses the Chrome DevTools screencast, which
+  Firefox and WebKit do not expose.
 - HTML output only. Other builders fall back to ``:poster:`` if provided,
   otherwise the directive is skipped.
-- The recording starts when the Playwright context is created, so the
-  first frames typically show a blank page before the load completes.
-  Use ``:trim-start:`` to skip them. This is a `known Playwright
-  limitation <https://github.com/microsoft/playwright/issues/27253>`__.
-- ``:trim-start:`` and ``:locator:`` require ffmpeg. Playwright already
-  bundles one as part of ``playwright install``; the extension uses it
-  automatically and falls back to a system ffmpeg if needed.
+- Defaults to WebM/VP8 with no audio. mp4/h264/VP9 and lossless require a
+  system ffmpeg via ``:ffmpeg-executable:`` plus ``:ffmpeg-options:`` and
+  ``:output-extension:``.
+- Recording requires ffmpeg. Playwright already bundles one as part of
+  ``playwright install``; the extension uses it automatically and falls back
+  to a system ffmpeg on PATH if needed.
 
 Configuration
 #############
