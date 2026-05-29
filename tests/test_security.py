@@ -72,9 +72,23 @@ def test_resolve_url_security():
     assert res == 'https://example.com'
 
 
+def test_mask_url():
+  from sphinxcontrib.screenshot._common import _mask_url
+
+  # Test file:// URL is masked
+  assert _mask_url('file:///etc/passwd') == '<local file>'
+  assert _mask_url('FILE:///etc/passwd') == '<local file>'
+
+  # Test http/https URLs are NOT masked
+  assert _mask_url('http://example.com') == 'http://example.com'
+  assert _mask_url('https://example.com') == 'https://example.com'
+
+
 # CLEANUP: Remove the PropertyMock from the class to avoid side effects
 @pytest.fixture(autouse=True)
 def cleanup_mock():
   yield
-  if hasattr(_PlaywrightDirective, 'env'):
+  try:
     del _PlaywrightDirective.env
+  except AttributeError:
+    pass

@@ -11,3 +11,10 @@
 **Learning:** Exception messages that bubble up to build logs or user-facing reports should be sanitized. While descriptive errors are helpful for debugging, they should not include server-side filesystem paths or raw input that might contain secrets.
 
 **Prevention:** Use generic error messages for security-related failures. Instead of including the problematic value or the absolute path in the error string, provide a clear explanation of the policy violation. Ensure that user-provided scripts or data are never echoed back in exceptions if they could contain sensitive information.
+
+## 2026-06-15 - Environmental Confidentiality via URL Masking
+**Vulnerability:** Even when error messages were somewhat sanitized, some logs and exceptions still interpolated the full `file://` URL, which contains the absolute filesystem path of the documentation source directory.
+
+**Learning:** Manually sanitizing every error message is error-prone. A centralized utility for masking sensitive components of a URL (like local file paths) ensures consistency across the codebase.
+
+**Prevention:** Use a `_mask_url` helper to replace `file://` URLs with a generic `<local file>` placeholder before including them in any user-facing error messages or building logs. This preserves debugging context (knowing a local file was involved) without revealing the underlying host's directory structure.
