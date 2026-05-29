@@ -252,8 +252,7 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
           # may contain sensitive data (e.g. passwords or tokens).
           raise RuntimeError(
               f'Timeout error occurred at {_mask_url(url)} during page '
-              'interactions.'
-          ) from e
+              'interactions.') from e
 
         # Keep a reference to the video before closing — page.close() and
         # context.close() are required to flush the .webm to disk before
