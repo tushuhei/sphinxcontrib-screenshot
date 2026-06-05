@@ -117,24 +117,6 @@ def _hash_filename(parts: typing.Iterable[typing.Any], extension: str) -> str:
   return hashlib.md5(payload.encode()).hexdigest() + extension
 
 
-def _invoke_context_builder(
-    context_builder: typing.Callable, browser: Browser, url: str,
-    color_scheme: ColorScheme,
-    record_video_dir: typing.Optional[str]) -> BrowserContext:
-  """Call a user-provided context builder with the right signature.
-
-  For screenshot (record_video_dir is None), invoke the builder in 3-args
-  mode for full backwards compatibility. For screencast, pass
-  record_video_dir as a kwarg — the builder must accept it. The screencast
-  directive validates this in its run() before reaching here, so the kwarg
-  call is expected to succeed.
-  """
-  if record_video_dir is None:
-    return context_builder(browser, url, color_scheme)
-  return context_builder(
-      browser, url, color_scheme, record_video_dir=record_video_dir)
-
-
 def _prepare_context(
     playwright,
     browser_name: str,
@@ -144,45 +126,30 @@ def _prepare_context(
     timezone: typing.Optional[str],
     device_scale_factor: int,
     context_builder: ContextBuilder,
-    record_video_dir: typing.Optional[str] = None,
-    viewport_width: typing.Optional[int] = None,
-    viewport_height: typing.Optional[int] = None,
 ) -> typing.Tuple[Browser, BrowserContext]:
-  """Launch a browser and create a context, optionally via a custom builder."""
+  """Launch a browser and create a context, optionally via a custom builder.
+
+  Custom builders take ``(browser, url, color_scheme)``. Screencast recording
+  no longer relies on Playwright's ``record_video_*`` options: frames are
+  captured through the CDP screencast and encoded in userland, so the context
+  is a plain one for both screenshot and screencast.
+  """
   browser: Browser = getattr(playwright, browser_name).launch()
 
   if context_builder:
     try:
-      context = _invoke_context_builder(context_builder, browser, url,
-                                        color_scheme, record_video_dir)
+      context = context_builder(browser, url, color_scheme)
     except PlaywrightTimeoutError:
       # Do not leak the internal function name in the error message.
       raise RuntimeError(
           f'Timeout error occurred at {url} in executing the custom context '
           'builder.')
   else:
-    new_context_kwargs: typing.Dict[str, typing.Any] = dict(
+    context = browser.new_context(
         color_scheme=color_scheme,
         locale=locale,
         timezone_id=timezone,
         device_scale_factor=device_scale_factor)
-    if record_video_dir is not None:
-      new_context_kwargs['record_video_dir'] = record_video_dir
-      # When recording, the video size is fixed at context creation and
-      # cannot be changed by a later page.set_viewport_size(). Pin both
-      # viewport and video size to the requested viewport so locator-based
-      # cropping (computed in viewport coordinates) operates on a video
-      # frame of matching dimensions.
-      if viewport_width is not None and viewport_height is not None:
-        new_context_kwargs['viewport'] = {
-            'width': viewport_width,
-            'height': viewport_height,
-        }
-        new_context_kwargs['record_video_size'] = {
-            'width': viewport_width,
-            'height': viewport_height,
-        }
-    context = browser.new_context(**new_context_kwargs)
 
   return browser, context
 

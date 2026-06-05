@@ -13,9 +13,8 @@
 # limitations under the License.
 
 
-def custom_context(browser, url, color_scheme, record_video_dir):
-  context = browser.new_context(
-      color_scheme=color_scheme, record_video_dir=record_video_dir)
+def custom_context(browser, url, color_scheme):
+  context = browser.new_context(color_scheme=color_scheme)
   page = context.new_page()
   page.goto(url)
   return context

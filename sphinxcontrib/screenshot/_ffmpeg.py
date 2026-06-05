@@ -11,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""ffmpeg location and post-processing helpers used by screencast trim/crop."""
+"""ffmpeg location and the single-pass encoder used by screencast recording."""
 
-import functools
+import math
 import os
 import platform
 import re
@@ -75,68 +75,103 @@ def _require_ffmpeg(reason: str) -> str:
   return ffmpeg
 
 
-@functools.lru_cache(maxsize=None)
-def _has_vp9(ffmpeg: str) -> bool:
-  """Return True iff ``ffmpeg`` has the libvpx-vp9 encoder built in.
+_PNG_DECODER_RE = re.compile(r'(?mi)^\s*\S+\s+png\b')
 
-  Playwright's bundled ffmpeg is compiled with VP8 only
-  (``--enable-encoder=libvpx_vp8``); a system ffmpeg usually has both.
-  Probing once per binary lets us pick the better codec when available
-  and silently fall back to VP8 otherwise.
+
+def decodes_png(ffmpeg: str) -> bool:
+  """Whether ``ffmpeg`` can decode PNG input.
+
+  The ffmpeg bundled by Playwright is built ``--disable-everything`` and only
+  decodes mjpeg (its native screencast input), so PNG frames require a system
+  ffmpeg. Callers fall back to JPEG capture when this returns False.
   """
   try:
-    out = subprocess.run([ffmpeg, '-hide_banner', '-encoders'],
-                         check=True,
-                         stdout=subprocess.PIPE,
-                         stderr=subprocess.DEVNULL,
-                         timeout=5).stdout
-  except (subprocess.SubprocessError, OSError):
+    result = subprocess.run([ffmpeg, '-hide_banner', '-decoders'],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL,
+                            check=False)
+  except OSError:
     return False
-  return b'libvpx-vp9' in out
+  return bool(_PNG_DECODER_RE.search(result.stdout.decode('utf-8', 'replace')))
 
 
-def _postprocess_video(
+# Near-lossless VP8 encoder, applied to the buffered frames. The bundled
+# Playwright ffmpeg ships VP8 only (decodes mjpeg, encodes vp8), so VP8 is the
+# default codec; users who want VP9/AV1/lossless point :ffmpeg-executable: at a
+# system ffmpeg and override the encoder via :ffmpeg-options:. A low CRF on
+# PNG/JPEG-q100 sources keeps monospace text crisp. Encoding is offline (frames
+# are buffered first), so the slower 'good' deadline is used.
+_VP8_CRF = 4
+
+DEFAULT_ENCODE = (f'-an -c:v libvpx -b:v 0 -crf {_VP8_CRF} -qmin 0 -qmax 10 '
+                  '-deadline good -cpu-used 1')
+
+
+def encode_frames(
     ffmpeg: str,
-    src: str,
+    frames: typing.Sequence[typing.Tuple[bytes, float]],
     dst: str,
-    trim_start: typing.Optional[float] = None,
+    fps: int,
+    frame_format: str = 'png',
     crop: typing.Optional[typing.Tuple[int, int, int, int]] = None,
+    trim_start: typing.Optional[float] = None,
+    encode_options: typing.Optional[str] = None,
 ) -> None:
-  """Apply optional trim and/or crop to ``src`` and write to ``dst``.
+  """Encode buffered image frames into ``dst`` in a single ffmpeg pass.
 
-  Combines both into a single libvpx re-encode pass when both are requested.
-  ``crop`` is ``(x, y, w, h)`` in video pixels.
+  ``frames`` is a list of ``(image_bytes, timestamp_seconds)`` in capture
+  order, each encoded as ``frame_format`` (``'png'`` or ``'jpeg'``). A
+  constant-rate frame pump repeats each frame to honor wall-clock timing,
+  mirroring Playwright's own ``videoRecorder.ts``. ``crop`` is ``(x, y, w, h)``
+  in frame pixels; ``trim_start`` drops frames captured before that many
+  seconds from the first frame. ``encode_options`` replaces the default encoder
+  selection; the input, crop and even-dimension pad are always injected here.
   """
-  cmd = [ffmpeg, '-y', '-i', src]
+  if not frames:
+    raise RuntimeError('No frames to encode.')
+
+  decoder = 'png' if frame_format == 'png' else 'mjpeg'
+
   if trim_start:
-    cmd += ['-ss', f'{trim_start:.3f}']
+    cutoff = frames[0][1] + trim_start
+    frames = [f for f in frames if f[1] >= cutoff] or frames[-1:]
+
+  # Frame pump: write each frame as many times as the constant-rate grid
+  # advanced since the previous one. Identical repeated PNGs cost almost
+  # nothing once VP8 inter-codes them. A trailing second of the last frame
+  # leaves the video resting on the final state.
+  t0 = frames[0][1]
+  payload = bytearray()
+  prev: typing.Optional[bytes] = None
+  prev_index = 0
+  for png, ts in frames:
+    index = math.floor((ts - t0) * fps)
+    if prev is not None:
+      payload += prev * (index - prev_index)
+    prev, prev_index = png, index
+  payload += frames[-1][0] * fps
+
+  vf = []
   if crop:
     x, y, w, h = crop
-    cmd += ['-vf', f'crop={w}:{h}:{x}:{y}']
-  # Constant-quality re-encode: prefer VP9 when available (better
-  # compression at equal quality, especially for UI/text screen
-  # content), fall back to VP8 with the libvpx ffmpeg that Playwright
-  # bundles (compiled VP8-only). ``-b:v 0`` enables true CQ mode where
-  # the encoder targets the CRF rather than a fixed bitrate. CRF 28 is
-  # Google's recommended sweet spot for VP9 screen content; the VP8
-  # equivalent is ~CRF 10 (the VP8 scale runs 4–63 with a different
-  # quality curve). ``-row-mt 1`` parallelises tile-row encoding on
-  # VP9 (no-op / unsupported on VP8). ``-quality good -cpu-used 1``
-  # tunes VP8 for the best quality/speed trade-off.
-  if _has_vp9(ffmpeg):
-    cmd += [
-        '-an', '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '28', '-row-mt', '1',
-        dst
-    ]
-  else:
-    cmd += [
-        '-an', '-c:v', 'libvpx', '-b:v', '0', '-crf', '10', '-quality', 'good',
-        '-cpu-used', '1', dst
-    ]
-  try:
-    subprocess.run(
-        cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-  except subprocess.CalledProcessError as e:
-    stderr = (e.stderr or b'').decode('utf-8', errors='replace').strip()
+    vf.append(f'crop={w}:{h}:{x}:{y}')
+  vf.append('pad=ceil(iw/2)*2:ceil(ih/2)*2')
+
+  cmd = [
+      ffmpeg, '-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate',
+      str(fps), '-c:v', decoder, '-i', 'pipe:0', '-vf', ','.join(vf)
+  ]
+  cmd += (encode_options or DEFAULT_ENCODE).split()
+  cmd += [dst]
+
+  proc = subprocess.Popen(
+      cmd,
+      stdin=subprocess.PIPE,
+      stdout=subprocess.DEVNULL,
+      stderr=subprocess.PIPE)
+  _, stderr = proc.communicate(input=bytes(payload))
+  if proc.returncode:
+    message = (stderr or b'').decode('utf-8', errors='replace').strip()
     raise RuntimeError(
-        f'ffmpeg failed (exit {e.returncode}) for {src!r}:\n{stderr}') from e
+        f'ffmpeg failed (exit {proc.returncode}) while encoding screencast:\n'
+        f'{message}')

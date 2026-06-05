@@ -12,12 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import inspect
+import base64
 import math
 import os
-import shutil
-import tempfile
-import time
 import typing
 
 from docutils import nodes
@@ -32,7 +29,7 @@ from ._common import (ContextBuilder, _hash_filename, _navigate,
                       _PlaywrightDirective, _prepare_context,
                       _run_interactions, parse_expected_status_codes,
                       parse_locator_padding)
-from ._ffmpeg import _postprocess_video, _require_ffmpeg
+from ._ffmpeg import _require_ffmpeg, decodes_png, encode_frames
 
 logger = sphinx_logging.getLogger(__name__)
 
@@ -119,6 +116,10 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
       'locator': str,
       'locator-padding': parse_locator_padding,
       'color-scheme': str,
+      'ffmpeg-options': directives.unchanged,
+      'ffmpeg-executable': directives.unchanged,
+      'fps': directives.positive_int,
+      'output-extension': directives.unchanged,
   }
 
   @staticmethod
@@ -136,63 +137,66 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
                       timezone: typing.Optional[str],
                       poster_when: typing.Optional[str] = None,
                       trim_start: typing.Optional[float] = None,
-                      trim_auto: bool = False,
                       locator: typing.Optional[str] = None,
                       locator_padding: typing.Tuple[int, int, int,
                                                     int] = (0, 0, 0, 0),
                       color_scheme: ColorScheme = 'null',
                       expected_status_codes: typing.Optional[str] = None,
                       location: typing.Optional[str] = None,
-                      timeout: int = 10000):
+                      timeout: int = 10000,
+                      ffmpeg_options: typing.Optional[str] = None,
+                      ffmpeg_executable: typing.Optional[str] = None,
+                      fps: typing.Optional[int] = None):
     """Records a WebM screencast of a webpage with Playwright.
 
-    The recording covers `goto -> networkidle -> interactions -> networkidle`.
-    To capture animations after a click, the user must keep the page busy in
-    the interactions JS (e.g. `await new Promise(r => setTimeout(r, 1000))`).
+    Frames are captured through the Chrome DevTools screencast as lossless
+    PNGs (chromium only), buffered, then encoded in a single ffmpeg pass.
+    Recording starts after `goto -> networkidle` and covers
+    `interactions -> networkidle`, so the initial blank flash is never
+    captured. To record animations after a click, keep the page busy in the
+    interactions JS (e.g. `await new Promise(r => setTimeout(r, 1000))`).
 
     ``poster_when`` toggles automatic poster generation. ``'start'`` takes
-    a PNG screenshot right after page load and before interactions (matches
-    the first visible frame when ``trim_start``/``trim_auto`` is also set);
+    a PNG screenshot right after page load and before interactions;
     ``'end'`` takes it after interactions; ``None`` skips poster generation.
     The PNG is saved next to ``filepath`` (with a .png extension).
 
-    ``trim_start`` (in seconds) trims the beginning of the recording.
-    ``trim_auto=True`` measures the time between context creation and the
-    end of the page load and uses it as the trim offset, eliminating the
-    initial about:blank flash. Mutually exclusive with ``trim_start``.
+    ``trim_start`` (in seconds) drops the frames captured during that many
+    seconds at the start of the recording.
 
     ``locator`` is a Playwright selector. When set, the video is cropped to
-    the bounding box of the matched element via ffmpeg post-processing.
-    ``locator_padding`` is a ``(top, right, bottom, left)`` tuple of CSS
-    pixels added to the crop box on the matching side, mirroring CSS's
-    ``padding`` shorthand. The box is clamped to the viewport.
+    the bounding box of the matched element. ``locator_padding`` is a
+    ``(top, right, bottom, left)`` tuple of CSS pixels added to the crop box
+    on the matching side, mirroring CSS's ``padding`` shorthand. The box is
+    clamped to the viewport.
     """
+    if browser_name != 'chromium':
+      raise RuntimeError(
+          'screencast recording requires the chromium browser; it relies on '
+          f'the Chrome DevTools screencast, got {browser_name!r}.')
+
     if expected_status_codes is None:
       expected_status_codes = "200,302"
 
     valid_codes = parse_expected_status_codes(expected_status_codes)
     poster_path = os.path.splitext(filepath)[0] + '.png'
+    fps = fps or 25
+
+    ffmpeg = ffmpeg_executable or _require_ffmpeg('screencast recording')
+    # Capture lossless PNG when ffmpeg can decode it, else fall back to JPEG.
+    # The bundled Playwright ffmpeg only decodes mjpeg, so the out-of-the-box
+    # default is JPEG q100 (near-lossless); a system ffmpeg unlocks true
+    # lossless via PNG capture and a lossless encoder in :ffmpeg-options:.
+    frame_format = 'png' if decodes_png(ffmpeg) else 'jpeg'
+
+    frames: typing.List[typing.Tuple[bytes, typing.Optional[float]]] = []
     success = False
     try:
-      with (tempfile.TemporaryDirectory() as tmp_dir, sync_playwright() as
-            playwright):
-        browser, context = _prepare_context(
-            playwright,
-            browser_name,
-            url,
-            color_scheme,
-            locale,
-            timezone,
-            device_scale_factor,
-            context_builder,
-            record_video_dir=tmp_dir,
-            viewport_width=viewport_width,
-            viewport_height=viewport_height)
-        # Capture timer right after context creation so auto-trim brackets
-        # the actual video — placing it earlier would also count the browser
-        # launch overhead (100–500 ms) and trim into real content.
-        t_context_start = time.monotonic()
-
+      with sync_playwright() as playwright:
+        browser, context = _prepare_context(playwright, browser_name, url,
+                                            color_scheme, locale, timezone,
+                                            device_scale_factor,
+                                            context_builder)
         page = context.new_page()
         page.set_default_timeout(timeout)
         page.set_viewport_size({
@@ -200,8 +204,22 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
             'height': viewport_height
         })
 
+        session = context.new_cdp_session(page)
+
+        def _on_frame(params: typing.Dict[str, typing.Any]) -> None:
+          metadata = params.get('metadata', {})
+          frames.append(
+              (base64.b64decode(params['data']), metadata.get('timestamp')))
+          # The browser pauses the stream until each frame is acked.
+          try:
+            session.send('Page.screencastFrameAck',
+                         {'sessionId': params['sessionId']})
+          except Exception:
+            pass
+
+        session.on('Page.screencastFrame', _on_frame)
+
         crop_box: typing.Optional[typing.Tuple[int, int, int, int]] = None
-        auto_trim_offset: typing.Optional[float] = None
 
         try:
           if init_script:
@@ -209,13 +227,29 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
           page.set_extra_http_headers(headers)
           _navigate(page, url, valid_codes, expected_status_codes, location)
 
-          if trim_auto:
-            auto_trim_offset = time.monotonic() - t_context_start
-
           if poster_when == 'start':
             page.screenshot(path=poster_path)
 
+          # Start recording only once the page has loaded so the screencast
+          # captures the interactions, not the initial blank flash.
+          start_params: typing.Dict[str, typing.Any] = {
+              'format': frame_format,
+              'maxWidth': viewport_width,
+              'maxHeight': viewport_height,
+              'everyNthFrame': 1,
+          }
+          if frame_format == 'jpeg':
+            start_params['quality'] = 100
+          session.send('Page.startScreencast', start_params)
+          # CDP delivers the first frame asynchronously; spin the loop until it
+          # arrives (bounded) so brief or absent interactions still yield a
+          # non-empty video.
+          waited = 0
+          while not frames and waited < 1000:
+            page.wait_for_timeout(50)
+            waited += 50
           _run_interactions(page, interactions)
+          session.send('Page.stopScreencast')
 
           if poster_when == 'end':
             page.screenshot(path=poster_path)
@@ -254,37 +288,26 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
               f'Timeout error occurred at {url} during page interactions.'
           ) from e
 
-        # Keep a reference to the video before closing — page.close() and
-        # context.close() are required to flush the .webm to disk before
-        # save_as can read it.
-        video = page.video
-        page.close()
         context.close()
-        if video is None:
-          raise RuntimeError(
-              'Playwright did not record a video. The custom context '
-              'builder likely did not pass record_video_dir to '
-              'browser.new_context().')
-
-        video.save_as(filepath)
         browser.close()
 
-        effective_trim = auto_trim_offset if trim_auto else trim_start
-        if (effective_trim and effective_trim > 0) or crop_box:
-          ffmpeg = _require_ffmpeg(
-              'screencast trim-start/locator post-processing')
-          intermediate = os.path.join(tmp_dir, 'postprocessed.webm')
-          _postprocess_video(
-              ffmpeg,
-              filepath,
-              intermediate,
-              trim_start=effective_trim
-              if effective_trim and effective_trim > 0 else None,
-              crop=crop_box)
-          # shutil.move falls back to copy+delete across filesystems;
-          # os.replace would raise EXDEV when tmp_dir (often tmpfs) and
-          # the build directory live on different devices.
-          shutil.move(intermediate, filepath)
+      captured: typing.List[typing.Tuple[bytes, float]] = [
+          (data, ts) for data, ts in frames if ts is not None
+      ]
+      if not captured:
+        raise RuntimeError(
+            'screencast captured no frames; ensure :interactions: keep the '
+            'page busy (e.g. await new Promise(r => setTimeout(r, 500))).')
+
+      encode_frames(
+          ffmpeg,
+          captured,
+          filepath,
+          fps,
+          frame_format=frame_format,
+          crop=crop_box,
+          trim_start=trim_start if trim_start and trim_start > 0 else None,
+          encode_options=ffmpeg_options)
 
       success = True
     finally:
@@ -376,35 +399,40 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
     """Generate a single screencast and return the docutils nodes."""
     poster_mode, poster_value = self._parse_poster()
 
-    # Bare ``:trim-start:`` is normalized to ``'auto'`` so the option and the
-    # config default share the same dispatch.
+    # ``:trim-start:`` is a number of seconds to drop from the start (empty or
+    # absent = no trim). The previous automatic mode was removed: the
+    # screencast now starts after page load, so there is no initial flash.
     trim_raw: typing.Optional[str]
     if 'trim-start' in self.options:
-      trim_raw = (self.options['trim-start'] or '').strip() or 'auto'
+      trim_raw = (self.options['trim-start'] or '').strip()
     else:
       config_trim = self.env.config.screencast_default_trim_start
-      if config_trim is None:
-        trim_raw = None
-      elif isinstance(config_trim, str):
-        trim_raw = config_trim.strip() or None
-      else:
-        trim_raw = str(config_trim)
+      trim_raw = str(config_trim).strip() if config_trim is not None else None
 
-    trim_value: typing.Optional[float]
-    if trim_raw is None:
-      trim_mode = 'none'
-      trim_value = None
-    elif trim_raw == 'auto':
-      trim_mode = 'auto'
-      trim_value = None
-    else:
-      trim_mode = 'explicit'
+    trim_value: typing.Optional[float] = None
+    if trim_raw:
       try:
         trim_value = float(trim_raw)
       except ValueError:
         raise self.error(
             f':trim-start: (or screencast_default_trim_start) must be a '
-            f'number of seconds or "auto", got {trim_raw!r}.')
+            f'number of seconds, got {trim_raw!r}.')
+
+    cfg = self.env.config
+    ffmpeg_options_value: typing.Optional[str] = (
+        self.options.get('ffmpeg-options',
+                         cfg.screencast_default_ffmpeg_options) or None)
+    if isinstance(ffmpeg_options_value, str):
+      ffmpeg_options_value = ffmpeg_options_value.strip() or None
+
+    ffmpeg_executable_value: typing.Optional[str] = self.options.get(
+        'ffmpeg-executable', cfg.screencast_default_ffmpeg_executable) or None
+
+    fps_value: typing.Optional[int] = self.options.get(
+        'fps', cfg.screencast_default_fps)
+
+    output_extension_value: typing.Optional[str] = self.options.get(
+        'output-extension', cfg.screencast_default_output_extension) or None
 
     locator_value: str = self.options.get('locator', '') or ''
     # Option_spec runs values through parse_locator_padding so per-directive
@@ -451,7 +479,6 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
         name, value = header.split(" ", 1)
         request_headers[name] = value
 
-    cfg = self.env.config
     loop_flag = 'loop' in self.options or cfg.screencast_default_loop
     autoplay_flag = ('autoplay' in self.options or
                      cfg.screencast_default_autoplay)
@@ -478,7 +505,6 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
         controls_flag,
         poster_mode,
         poster_value,
-        trim_mode,
         trim_value,
         locator_value,
         locator_padding_value,
@@ -487,25 +513,14 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
         locale,
         timezone,
         request_headers,
-    ], '.webm')
+        ffmpeg_options_value,
+        ffmpeg_executable_value,
+        fps_value,
+        output_extension_value,
+    ], '.' + (output_extension_value or 'webm'))
     filepath = os.path.join(sc_dirpath, filename)
 
     context_builder = self._resolve_context_builder(context)
-
-    # Detect a 3-args context builder early — recording video requires the
-    # builder to accept record_video_dir. Emit an error and skip the directive
-    # rather than crashing the whole Sphinx build.
-    if context_builder and 'record_video_dir' not in inspect.signature(
-        context_builder).parameters:
-      logger.error(
-          f'screencast: context builder '
-          f'{context_builder.__module__}.{context_builder.__name__} must '
-          f'accept a record_video_dir parameter. Update its signature to '
-          f'(browser, url, color_scheme, record_video_dir). Skipping '
-          f'directive.',
-          location=self.env.docname,
-          type='screencast')
-      return []
 
     poster_filepath = os.path.splitext(filepath)[0] + '.png'
     poster_auto = poster_mode in ('auto-start', 'auto-end')
@@ -532,13 +547,15 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
           timezone,
           poster_when=poster_when,
           trim_start=trim_value,
-          trim_auto=(trim_mode == 'auto'),
           locator=locator_value or None,
           locator_padding=locator_padding_value,
           color_scheme=typing.cast(ColorScheme, cs),
           expected_status_codes=status_code,
           location=self.env.docname,
-          timeout=timeout)
+          timeout=timeout,
+          ffmpeg_options=ffmpeg_options_value,
+          ffmpeg_executable=ffmpeg_executable_value,
+          fps=fps_value)
       fut.result()
 
     # Compute src relative to the HTML output of the current doc, since the
