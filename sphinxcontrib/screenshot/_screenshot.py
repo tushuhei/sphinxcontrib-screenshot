@@ -255,8 +255,8 @@ class ScreenshotDirective(_PlaywrightDirective, Figure):
 
   def _generate_single_screenshot(
       self,
-      color_scheme: typing.Optional[str] = None
-  ) -> typing.Sequence[nodes.Node]:
+      color_scheme: typing.Optional[str] = None,
+      alias_suffix: str = '') -> typing.Sequence[nodes.Node]:
     """Generate a single screenshot and return the docutils nodes."""
     screenshot_init_script: str = self.env.config.screenshot_init_script or ''
     docdir = os.path.dirname(self.env.doc2path(self.env.docname))
@@ -336,6 +336,10 @@ class ScreenshotDirective(_PlaywrightDirective, Figure):
           request_headers, device_scale_factor, locale, timezone, status_code,
           self.env.docname, timeout, locator or None, locator_padding)
       fut.result()
+
+    alias = self.options.get('alias')
+    if alias:
+      self._write_alias(filepath, alias, alias_suffix)
 
     rel_ss_dirpath = os.path.relpath(ss_dirpath, start=docdir)
     rel_filepath = os.path.join(rel_ss_dirpath, filename).replace(os.sep, '/')
