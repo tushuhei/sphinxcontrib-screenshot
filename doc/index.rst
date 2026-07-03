@@ -59,6 +59,34 @@ and supports all its options (`:align:`, `:alt:`, `:figclass:`, `:figwidth:`, `:
 
         An example of screenshot using the figure `:align:` and `:width:` options.
 
+.. _alias:
+
+``:alias:``
+===========
+
+Artifacts are named after a hash of all their generation parameters, so the
+filenames change whenever an option changes and are not predictable. Set
+``:alias:`` to also write the artifact under a stable, predictable name. This
+is convenient to link to the file from outside the documentation (an external
+page, a README…).
+
+.. code-block:: rst
+
+    .. screenshot:: http://www.example.com
+      :alias: homepage
+
+The hashed file is still produced (it stays the build cache); ``:alias:`` adds
+a copy next to it. The example above is then available at
+``_static/screenshots/homepage.png`` (and ``homepage.pdf`` when :ref:`pdf
+<pdf>` is set). The same option works on :rst:dir:`screencast`, producing
+``_static/screencasts/homepage.webm`` (plus ``homepage.png`` for an automatic
+poster). With :ref:`color-scheme: auto <color-scheme>`, two artifacts are
+written, suffixed ``-light`` and ``-dark`` (e.g. ``homepage-light.png``).
+
+The alias is a bare filename stem, restricted to ASCII letters, digits,
+``.``, ``_`` and ``-``. If two directives share the same alias, the last one
+written wins.
+
 .. _browser:
 
 ``:browser:``

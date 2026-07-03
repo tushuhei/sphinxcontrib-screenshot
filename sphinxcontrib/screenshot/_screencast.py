@@ -394,8 +394,8 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
 
   def _generate_single_screencast(
       self,
-      color_scheme: typing.Optional[str] = None
-  ) -> typing.Sequence[nodes.Node]:
+      color_scheme: typing.Optional[str] = None,
+      alias_suffix: str = '') -> typing.Sequence[nodes.Node]:
     """Generate a single screencast and return the docutils nodes."""
     poster_mode, poster_value = self._parse_poster()
 
@@ -557,6 +557,10 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
           ffmpeg_executable=ffmpeg_executable_value,
           fps=fps_value)
       fut.result()
+
+    alias = self.options.get('alias')
+    if alias:
+      self._write_alias(filepath, alias, alias_suffix)
 
     # Compute src relative to the HTML output of the current doc, since the
     # screencast node has no Sphinx-side image-collection machinery to rewrite

@@ -17,6 +17,7 @@ import hashlib
 import importlib
 import json
 import os
+import shutil
 import typing
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -92,6 +93,27 @@ def parse_locator_padding(
 
   raise ValueError('locator-padding accepts 1, 2, 3, or 4 values (CSS padding '
                    f'shorthand), got {len(parts)}.')
+
+
+_ALIAS_ALLOWED = set('._-')
+
+
+def validate_alias(value: str) -> str:
+  """Validate an ``:alias:`` value: an ASCII filename stem, no path parts.
+
+  The alias becomes ``<alias>.<ext>`` next to the hashed artifact and is
+  served through a URL, so it is restricted to ASCII letters, digits, ``.``,
+  ``_`` and ``-``. That allowlist also rules out path separators (no directory
+  traversal); ``.`` and ``..`` are excluded explicitly since the dot is
+  otherwise allowed.
+  """
+  stripped = (value or '').strip()
+  if (not stripped or stripped in ('.', '..') or not stripped.isascii() or
+      not all(c.isalnum() or c in _ALIAS_ALLOWED for c in stripped)):
+    raise ValueError(
+        'alias must be a filename stem using only ASCII letters, digits, '
+        f'".", "_" or "-", got {value!r}.')
+  return stripped
 
 
 def resolve_python_method(import_path: str):
@@ -203,8 +225,28 @@ class _PlaywrightDirective(SphinxDirective):
       'device-scale-factor': directives.positive_int,
       'status-code': str,
       'timeout': directives.positive_int,
+      'alias': validate_alias,
   }
   pool = ThreadPoolExecutor()
+
+  def _write_alias(self,
+                   primary_filepath: str,
+                   alias: str,
+                   suffix: str = '') -> None:
+    """Copy every artifact sharing the hashed stem to a stable-named alias.
+
+    A single directive produces one file per output (``<hash>.png`` plus
+    ``<hash>.pdf`` for a screenshot, or ``<hash>.webm`` plus ``<hash>.png`` for
+    a screencast with an automatic poster). They all share the hash stem, so a
+    ``<stem>.*`` glob copies the media and its companions in one pass. The
+    alias coexists with the hashed files (which stay the cache key); the copy
+    is unconditional so the alias tracks the current hash when an option
+    changes. On a name clash the last write wins.
+    """
+    primary = Path(primary_filepath)
+    target_stem = alias + suffix
+    for src in primary.parent.glob(primary.stem + '.*'):
+      shutil.copyfile(src, src.parent / (target_stem + src.suffix))
 
   def _evaluate_substitutions(self, text: str) -> str:
     substitutions = self.state.document.substitution_defs
@@ -317,14 +359,14 @@ class _PlaywrightDirective(SphinxDirective):
     original_arguments = self.arguments[:]
     original_options = self.options.copy()
 
-    light_nodes = generator(color_scheme='light')
+    light_nodes = generator(color_scheme='light', alias_suffix='-light')
     light_nodes = self._add_css_class_to_nodes(light_nodes, 'only-light',
                                                inner_types)
 
     self.arguments = original_arguments[:]
     self.options = original_options.copy()
 
-    dark_nodes = generator(color_scheme='dark')
+    dark_nodes = generator(color_scheme='dark', alias_suffix='-dark')
     dark_nodes = self._add_css_class_to_nodes(dark_nodes, 'only-dark',
                                               inner_types)
 
