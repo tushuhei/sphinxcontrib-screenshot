@@ -125,6 +125,7 @@ def setup(app: Sphinx) -> Meta:
       'screenshot_default_locator_padding',
       0,
       'env',
+      types=[int, str, tuple, list],
       description="Default padding in CSS pixels added around the bounding "
       "box when ``:locator:`` is set. Accepts the CSS ``padding`` shorthand: "
       "an ``int`` (uniform), or a whitespace-separated string of 1, 2, 3, or "
