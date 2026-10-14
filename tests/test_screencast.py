@@ -349,8 +349,8 @@ def test_encode_frames_custom_options(monkeypatch) -> None:
   assert cmd[-1] == 'dst.webm'
 
 
-def test_encode_frames_default_vp8(monkeypatch) -> None:
-  """Without encode_options the pass encodes VP8; JPEG frames use mjpeg."""
+def test_encode_frames_default(monkeypatch) -> None:
+  """Without encode_options the pass uses defaults; JPEG frames use mjpeg."""
   captured = {}
 
   def fake_popen(cmd, **kwargs):
@@ -362,7 +362,7 @@ def test_encode_frames_default_vp8(monkeypatch) -> None:
 
   cmd = captured['cmd']
   assert cmd[8:12] == ['-c:v', 'mjpeg', '-i', 'pipe:0']  # JPEG decoder
-  assert 'libvpx' in cmd and '-crf' in cmd
+  assert '-crf' in cmd
   assert DEFAULT_ENCODE.split()[0] in cmd
 
 
