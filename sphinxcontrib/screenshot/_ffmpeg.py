@@ -95,15 +95,14 @@ def decodes_png(ffmpeg: str) -> bool:
   return bool(_PNG_DECODER_RE.search(result.stdout.decode('utf-8', 'replace')))
 
 
-# Near-lossless VP8 encoder, applied to the buffered frames. The bundled
-# Playwright ffmpeg ships VP8 only (decodes mjpeg, encodes vp8), so VP8 is the
-# default codec; users who want VP9/AV1/lossless point :ffmpeg-executable: at a
-# system ffmpeg and override the encoder via :ffmpeg-options:. A low CRF on
-# PNG/JPEG-q100 sources keeps monospace text crisp. Encoding is offline (frames
-# are buffered first), so the slower 'good' deadline is used.
-_VP8_CRF = 4
+# Near-lossless encoder, applied to the buffered frames. Leaving the encoder
+# unspecified lets ffmpeg select the appropriate default for the container
+# (e.g. libvpx-vp9 or libvpx for WebM). A low CRF on PNG/JPEG-q100 sources
+# keeps monospace text crisp. Encoding is offline (frames are buffered first),
+# so the slower 'good' deadline is used.
+_CRF = 4
 
-DEFAULT_ENCODE = (f'-an -c:v libvpx -b:v 0 -crf {_VP8_CRF} -qmin 0 -qmax 10 '
+DEFAULT_ENCODE = (f'-an -b:v 0 -crf {_CRF} -qmin 0 -qmax 10 '
                   '-deadline good -cpu-used 1')
 
 
