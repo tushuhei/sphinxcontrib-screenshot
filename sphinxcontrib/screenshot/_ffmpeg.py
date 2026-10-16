@@ -75,7 +75,17 @@ def _require_ffmpeg(reason: str) -> str:
   return ffmpeg
 
 
-_PNG_DECODER_RE = re.compile(r'(?mi)^\s*\S+\s+png\b')
+def _has_codec(ffmpeg: str, kind: str, name: str) -> bool:
+  """Whether ``ffmpeg -<kind>`` lists a codec called ``name``."""
+  try:
+    result = subprocess.run([ffmpeg, '-hide_banner', f'-{kind}'],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL,
+                            check=False)
+  except OSError:
+    return False
+  pattern = rf'(?mi)^\s*\S+\s+{re.escape(name)}(\s|$)'
+  return bool(re.search(pattern, result.stdout.decode('utf-8', 'replace')))
 
 
 def decodes_png(ffmpeg: str) -> bool:
@@ -85,26 +95,30 @@ def decodes_png(ffmpeg: str) -> bool:
   decodes mjpeg (its native screencast input), so PNG frames require a system
   ffmpeg. Callers fall back to JPEG capture when this returns False.
   """
-  try:
-    result = subprocess.run([ffmpeg, '-hide_banner', '-decoders'],
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.DEVNULL,
-                            check=False)
-  except OSError:
-    return False
-  return bool(_PNG_DECODER_RE.search(result.stdout.decode('utf-8', 'replace')))
+  return _has_codec(ffmpeg, 'decoders', 'png')
 
 
-# Near-lossless VP8 encoder, applied to the buffered frames. The bundled
-# Playwright ffmpeg ships VP8 only (decodes mjpeg, encodes vp8), so VP8 is the
-# default codec; users who want VP9/AV1/lossless point :ffmpeg-executable: at a
-# system ffmpeg and override the encoder via :ffmpeg-options:. A low CRF on
-# PNG/JPEG-q100 sources keeps monospace text crisp. Encoding is offline (frames
-# are buffered first), so the slower 'good' deadline is used.
+# Near-lossless encoders, applied to the buffered frames. The ffmpeg bundled by
+# Playwright ships a single WebM encoder: VP8 up to Playwright 1.63, VP9 since
+# 1.64. VP9 is preferred: smaller files at the same visual quality. A low CRF
+# on PNG/JPEG-q100 sources keeps monospace text crisp. Encoding is offline
+# (frames are buffered first), so the slower 'good' deadline is used.
 _VP8_CRF = 4
+_VP9_CRF = 15
 
-DEFAULT_ENCODE = (f'-an -c:v libvpx -b:v 0 -crf {_VP8_CRF} -qmin 0 -qmax 10 '
-                  '-deadline good -cpu-used 1')
+VP8_ENCODE = (f'-an -c:v libvpx -b:v 0 -crf {_VP8_CRF} -qmin 0 -qmax 10 '
+              '-deadline good -cpu-used 1')
+VP9_ENCODE = (f'-an -c:v libvpx-vp9 -b:v 0 -crf {_VP9_CRF} -row-mt 1 '
+              '-deadline good -cpu-used 2')
+
+
+def default_encode(ffmpeg: str) -> str:
+  """Encoder options for the best default codec ``ffmpeg`` supports."""
+  if _has_codec(ffmpeg, 'encoders', 'libvpx-vp9'):
+    return VP9_ENCODE
+  if _has_codec(ffmpeg, 'encoders', 'libvpx'):
+    return VP8_ENCODE
+  return VP9_ENCODE
 
 
 def encode_frames(
@@ -138,8 +152,8 @@ def encode_frames(
 
   # Frame pump: write each frame as many times as the constant-rate grid
   # advanced since the previous one. Identical repeated PNGs cost almost
-  # nothing once VP8 inter-codes them. A trailing second of the last frame
-  # leaves the video resting on the final state.
+  # nothing once the encoder inter-codes them. A trailing second of the last
+  # frame leaves the video resting on the final state.
   t0 = frames[0][1]
   payload = bytearray()
   prev: typing.Optional[bytes] = None
@@ -161,7 +175,7 @@ def encode_frames(
       ffmpeg, '-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate',
       str(fps), '-c:v', decoder, '-i', 'pipe:0', '-vf', ','.join(vf)
   ]
-  cmd += (encode_options or DEFAULT_ENCODE).split()
+  cmd += (encode_options or default_encode(ffmpeg)).split()
   cmd += [dst]
 
   proc = subprocess.Popen(

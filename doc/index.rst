@@ -342,9 +342,10 @@ returned Promise, so the video covers exactly what the script does.
 
 Frames are captured through the Chrome DevTools screencast (**chromium
 only**) and encoded by ffmpeg in a single pass. With Playwright's bundled
-ffmpeg the frames are JPEG q100 encoded to near-lossless VP8; pointing
+ffmpeg the frames are JPEG q100 encoded to near-lossless WebM: VP8 with
+Playwright 1.63 and earlier, VP9 since Playwright 1.64. Pointing
 ``:ffmpeg-executable:`` at a system ffmpeg switches capture to lossless PNG
-and unlocks lossless/VP9 output.
+and unlocks lossless output and other codecs.
 
 Video options
 =============
@@ -396,15 +397,16 @@ Video options
     ``-an -c:v libvpx-vp9 -lossless 1 -row-mt 1``. Only the encoder portion:
     the image input, the even-dimension pad and the ``:locator:`` crop
     (``-vf``) are injected automatically, so do not include ``-i`` or
-    ``-vf``. When unset, the pass encodes near-lossless VP8 (the only codec
-    the bundled ffmpeg supports). VP9/H264/AV1 or true lossless require a
-    system ffmpeg via ``:ffmpeg-executable:``.
+    ``-vf``. When unset, the pass encodes near-lossless VP9, or VP8 when the
+    ffmpeg in use has no VP9 encoder. Other codecs or true lossless output
+    may require a system ffmpeg via ``:ffmpeg-executable:``.
 
 ``:ffmpeg-executable:``
     Path to a system ffmpeg binary to use instead of Playwright's bundled
-    one. The bundled binary only decodes mjpeg and encodes VP8, so capture
+    one. The bundled binary only decodes mjpeg and encodes a single WebM
+    codec (VP8 or VP9, depending on the Playwright version), so capture
     falls back to JPEG q100. A system ffmpeg that can decode PNG switches
-    capture to lossless PNG and enables VP9, H264, AV1 and lossless output
+    capture to lossless PNG and enables H264, AV1 and lossless output
     through ``:ffmpeg-options:``.
 
 ``:fps:``
@@ -454,9 +456,9 @@ Limitations
   Firefox and WebKit do not expose.
 - HTML output only. Other builders fall back to ``:poster:`` if provided,
   otherwise the directive is skipped.
-- Defaults to WebM/VP8 with no audio. mp4/h264/VP9 and lossless require a
-  system ffmpeg via ``:ffmpeg-executable:`` plus ``:ffmpeg-options:`` and
-  ``:output-extension:``.
+- Defaults to WebM (VP9, or VP8 when VP9 is not available) with no audio.
+  mp4/h264 and lossless require a system ffmpeg via ``:ffmpeg-executable:``
+  plus ``:ffmpeg-options:`` and ``:output-extension:``.
 - Recording requires ffmpeg. Playwright already bundles one as part of
   ``playwright install``; the extension uses it automatically and falls back
   to a system ffmpeg on PATH if needed.

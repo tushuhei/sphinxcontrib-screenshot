@@ -20,8 +20,9 @@ from bs4 import BeautifulSoup
 from sphinx.testing.util import SphinxTestApp
 
 from sphinxcontrib.screenshot import setup as _screenshot_setup
-from sphinxcontrib.screenshot._ffmpeg import (DEFAULT_ENCODE, _find_ffmpeg,
-                                              decodes_png, encode_frames)
+from sphinxcontrib.screenshot._ffmpeg import (VP8_ENCODE, VP9_ENCODE,
+                                              _find_ffmpeg, decodes_png,
+                                              default_encode, encode_frames)
 
 
 def _video_dimensions(filepath):
@@ -345,25 +346,75 @@ def test_encode_frames_custom_options(monkeypatch) -> None:
   vf = cmd[cmd.index('-vf') + 1]
   assert 'crop=3:4:1:2' in vf and 'pad=ceil(iw/2)*2:ceil(ih/2)*2' in vf
   assert '-lossless' in cmd  # user encode options used
-  assert '-crf' not in cmd  # default VP8 block replaced, not appended
+  assert '-crf' not in cmd  # default block replaced, not appended
   assert cmd[-1] == 'dst.webm'
 
 
-def test_encode_frames_default_vp8(monkeypatch) -> None:
-  """Without encode_options the pass encodes VP8; JPEG frames use mjpeg."""
+def _fake_listing(listing: bytes):
+  """A ``subprocess.run`` stand-in that prints ``listing`` on stdout."""
+
+  def run(cmd, **kwargs):
+    return subprocess.CompletedProcess(cmd, 0, stdout=listing, stderr=b'')
+
+  return run
+
+
+_VP8_LISTING = b' V....D libvpx               libvpx VP8 (codec vp8)\n'
+_VP9_LISTING = b' V....D libvpx-vp9           libvpx VP9 (codec vp9)\n'
+
+
+def test_encode_frames_default_vp9(monkeypatch) -> None:
+  """Without encode_options the pass encodes VP9; JPEG frames use mjpeg."""
   captured = {}
 
   def fake_popen(cmd, **kwargs):
     captured['cmd'] = cmd
     return _FakeProc()
 
+  monkeypatch.setattr(subprocess, 'run', _fake_listing(_VP9_LISTING))
   monkeypatch.setattr(subprocess, 'Popen', fake_popen)
   encode_frames('ffmpeg', [(b'a', 0.0)], 'dst.webm', 25, frame_format='jpeg')
 
   cmd = captured['cmd']
   assert cmd[8:12] == ['-c:v', 'mjpeg', '-i', 'pipe:0']  # JPEG decoder
-  assert 'libvpx' in cmd and '-crf' in cmd
-  assert DEFAULT_ENCODE.split()[0] in cmd
+  assert ' '.join(cmd).endswith(f'{VP9_ENCODE} dst.webm')
+
+
+def test_encode_frames_fallback_vp8(monkeypatch) -> None:
+  """Without encode_options and without VP9, the pass encodes VP8."""
+  captured = {}
+
+  def fake_popen(cmd, **kwargs):
+    captured['cmd'] = cmd
+    return _FakeProc()
+
+  monkeypatch.setattr(subprocess, 'run', _fake_listing(_VP8_LISTING))
+  monkeypatch.setattr(subprocess, 'Popen', fake_popen)
+  encode_frames('ffmpeg', [(b'a', 0.0)], 'dst.webm', 25, frame_format='jpeg')
+
+  assert ' '.join(captured['cmd']).endswith(f'{VP8_ENCODE} dst.webm')
+
+
+@pytest.mark.parametrize('listing, expected', [
+    (_VP8_LISTING, VP8_ENCODE),
+    (_VP9_LISTING, VP9_ENCODE),
+    (_VP8_LISTING + _VP9_LISTING, VP9_ENCODE),
+    (b' V....D mjpeg                MJPEG\n', VP9_ENCODE),
+])
+def test_default_encode(monkeypatch, listing, expected) -> None:
+  """``default_encode`` prefers VP9, then VP8, from the -encoders listing."""
+  monkeypatch.setattr(subprocess, 'run', _fake_listing(listing))
+  assert default_encode('ffmpeg') == expected
+
+
+def test_default_encode_missing_binary(monkeypatch) -> None:
+  """An ffmpeg that cannot be run falls back to VP9."""
+
+  def broken(cmd, **kwargs):
+    raise OSError
+
+  monkeypatch.setattr(subprocess, 'run', broken)
+  assert default_encode('ffmpeg') == VP9_ENCODE
 
 
 def test_decodes_png(monkeypatch) -> None:

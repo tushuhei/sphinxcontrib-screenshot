@@ -175,7 +175,8 @@ def setup(app: Sphinx) -> Meta:
       "e.g. '-an -c:v libvpx-vp9 -lossless 1 -row-mt 1'. Only the encoder "
       "portion: the PNG input, even-dimension pad and locator crop (-vf) are "
       "injected automatically, so do not include -i or -vf. When unset the "
-      "pass encodes near-lossless VP8. Per-directive :ffmpeg-options: "
+      "pass encodes near-lossless VP9, or VP8 when the ffmpeg in use has no "
+      "VP9 encoder. Per-directive :ffmpeg-options: "
       "overrides this default.")
   app.add_config_value(
       'screencast_default_ffmpeg_executable',
@@ -183,7 +184,7 @@ def setup(app: Sphinx) -> Meta:
       'env',
       description="Default path to a system ffmpeg binary used instead of "
       "Playwright's bundled one. Required to enable encoders not shipped "
-      "with the bundled binary (VP9, H264, AV1, etc.). Per-directive "
+      "with the bundled binary (H264, AV1, etc.). Per-directive "
       ":ffmpeg-executable: overrides this default.")
   app.add_config_value(
       'screencast_default_fps',
