@@ -369,6 +369,9 @@ Video options
     - **URL** (``:poster: ./image.png``): explicit URL of an image you
       provide. Also used as fallback for non-HTML builders.
 
+    Automatic posters have the same crop (see ``:locator:``) and the same
+    resolution as the video.
+
     ``auto-start`` and ``auto-end`` are reserved keywords. To pass an
     image whose URL is literally one of those, use a relative form like
     ``./auto-end`` or add an extension (``auto-end.png``).
@@ -380,9 +383,12 @@ Video options
     trim — this is for skipping a deliberate lead-in in your interactions.
 
 ``:locator:``
-    Playwright selector. When set, the video is cropped to the bounding
-    box of the matched element, similarly to the screenshot directive's
-    ``:locator:``. Requires ffmpeg.
+    Playwright selector. When set, the video and the automatic poster are
+    cropped to the bounding box of the matched element, similarly to the
+    screenshot directive's ``:locator:``. The box is measured once, after
+    page load and before the interactions. The element must exist at that
+    point. If it grows or moves during the interactions, the crop does not
+    follow it: widen the box with ``:locator-padding:``. Requires ffmpeg.
 
 ``:locator-padding:``
     Pad the locator's bounding box before cropping. Accepts the CSS

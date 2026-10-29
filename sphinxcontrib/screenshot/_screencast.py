@@ -21,6 +21,7 @@ from docutils import nodes
 from docutils.parsers.rst import directives
 from docutils.parsers.rst.directives.images import Figure
 from playwright._impl._helper import ColorScheme
+from playwright.sync_api import FloatRect
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 from sphinx.util import logging as sphinx_logging
@@ -32,6 +33,8 @@ from ._common import (ContextBuilder, _hash_filename, _navigate,
 from ._ffmpeg import _require_ffmpeg, decodes_png, encode_frames
 
 logger = sphinx_logging.getLogger(__name__)
+
+_Box = typing.Tuple[int, int, int, int]
 
 
 class screencast(nodes.General, nodes.Element):
@@ -58,6 +61,37 @@ def visit_screencast_html(self, node: screencast) -> None:
 
 def depart_screencast_html(self, node: screencast) -> None:
   pass
+
+
+def _crop_box(bbox: FloatRect, padding: _Box, viewport_width: int,
+              viewport_height: int) -> typing.Optional[_Box]:
+  """Integer ``(x, y, w, h)`` crop box around ``bbox``, in CSS pixels.
+
+  ``padding`` is ``(top, right, bottom, left)``, like CSS's ``padding``
+  shorthand. All values are even. Returns None when the box is outside the
+  viewport.
+  """
+  # Floor x/y and ceil w/h so the box always encloses the element (the
+  # opposite would shave off sub-pixel edges). Clamp to the viewport since
+  # ffmpeg crop coordinates outside the frame fail with a cryptic message.
+  # On 4:2:0 frames (the JPEG screencast), ffmpeg's crop silently rounds
+  # odd values down, which would shave a pixel off the video and shift it
+  # from the poster. Even values crop the same way in every format.
+  pad_top, pad_right, pad_bottom, pad_left = padding
+  x = max(0, math.floor(bbox['x']) - pad_left)
+  y = max(0, math.floor(bbox['y']) - pad_top)
+  x -= x % 2
+  y -= y % 2
+  w = min(math.ceil(bbox['x'] + bbox['width']) + pad_right, viewport_width) - x
+  h = min(math.ceil(bbox['y'] + bbox['height']) + pad_bottom,
+          viewport_height) - y
+  if w % 2:
+    w += 1 if x + w < viewport_width else -1
+  if h % 2:
+    h += 1 if y + h < viewport_height else -1
+  if w <= 0 or h <= 0:
+    return None
+  return x, y, w, h
 
 
 def visit_screencast_skip(self, node: screencast) -> None:
@@ -159,14 +193,17 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
     ``poster_when`` toggles automatic poster generation. ``'start'`` takes
     a PNG screenshot right after page load and before interactions;
     ``'end'`` takes it after interactions; ``None`` skips poster generation.
-    The PNG is saved next to ``filepath`` (with a .png extension).
+    The PNG is saved next to ``filepath`` (with a .png extension). It has the
+    same crop and the same resolution as the video.
 
     ``trim_start`` (in seconds) drops the frames captured during that many
     seconds at the start of the recording.
 
-    ``locator`` is a Playwright selector. When set, the video is cropped to
-    the bounding box of the matched element. ``locator_padding`` is a
-    ``(top, right, bottom, left)`` tuple of CSS pixels added to the crop box
+    ``locator`` is a Playwright selector. When set, the video and the poster
+    are cropped to the bounding box of the matched element. The box is
+    measured once, after page load and before interactions.
+    ``locator_padding`` is a ``(top, right, bottom, left)`` tuple of CSS
+    pixels added to the crop box
     on the matching side, mirroring CSS's ``padding`` shorthand. The box is
     clamped to the viewport.
     """
@@ -219,7 +256,7 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
 
         session.on('Page.screencastFrame', _on_frame)
 
-        crop_box: typing.Optional[typing.Tuple[int, int, int, int]] = None
+        crop_box: typing.Optional[_Box] = None
 
         try:
           if init_script:
@@ -227,8 +264,29 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
           page.set_extra_http_headers(headers)
           _navigate(page, url, valid_codes, expected_status_codes, location)
 
+          if locator:
+            bbox = page.locator(locator).bounding_box(timeout=timeout)
+            if bbox is None:
+              raise RuntimeError(
+                  f'Locator {locator!r} did not match a visible element on '
+                  f'{url}.')
+
+            crop_box = _crop_box(bbox, locator_padding, viewport_width,
+                                 viewport_height)
+            if crop_box is None:
+              raise RuntimeError(
+                  f'Locator {locator!r} bounding box ({bbox}) is outside '
+                  f'the viewport ({viewport_width}x{viewport_height}).')
+
+          # Screencast frames are capped to the viewport size in CSS pixels,
+          # so the poster uses the CSS scale to match the video resolution.
+          poster_clip: typing.Optional[FloatRect] = None
+          if crop_box:
+            x, y, w, h = crop_box
+            poster_clip = {'x': x, 'y': y, 'width': w, 'height': h}
+
           if poster_when == 'start':
-            page.screenshot(path=poster_path)
+            page.screenshot(path=poster_path, clip=poster_clip, scale='css')
 
           # Start recording only once the page has loaded so the screencast
           # captures the interactions, not the initial blank flash.
@@ -252,35 +310,7 @@ class ScreencastDirective(_PlaywrightDirective, Figure):
           session.send('Page.stopScreencast')
 
           if poster_when == 'end':
-            page.screenshot(path=poster_path)
-
-          if locator:
-            bbox = page.locator(locator).bounding_box(timeout=timeout)
-            if bbox is None:
-              raise RuntimeError(
-                  f'Locator {locator!r} did not match a visible element on '
-                  f'{url}.')
-
-            # Floor x/y and ceil w/h so the bounding box always encloses the
-            # element (the opposite would shave off sub-pixel edges). Clamp
-            # to the viewport since ffmpeg crop coordinates outside the
-            # frame fail with a cryptic message. ``locator_padding`` widens
-            # the box per side (CSS shorthand) before clamping.
-            pad_top, pad_right, pad_bottom, pad_left = locator_padding
-            x = max(0, math.floor(bbox['x']) - pad_left)
-            y = max(0, math.floor(bbox['y']) - pad_top)
-            w = min(
-                math.ceil(bbox['x'] + bbox['width']) + pad_right - x,
-                viewport_width - x)
-            h = min(
-                math.ceil(bbox['y'] + bbox['height']) + pad_bottom - y,
-                viewport_height - y)
-            if w <= 0 or h <= 0:
-              raise RuntimeError(
-                  f'Locator {locator!r} bounding box ({bbox}) is outside '
-                  f'the viewport ({viewport_width}x{viewport_height}).')
-
-            crop_box = (x, y, w, h)
+            page.screenshot(path=poster_path, clip=poster_clip, scale='css')
         except PlaywrightTimeoutError as e:
           # Do not leak the interactions string in the error message as it
           # may contain sensitive data (e.g. passwords or tokens).
