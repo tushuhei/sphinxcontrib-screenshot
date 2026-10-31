@@ -22,6 +22,7 @@ from sphinx.testing.util import SphinxTestApp
 from sphinxcontrib.screenshot import setup as _screenshot_setup
 from sphinxcontrib.screenshot._ffmpeg import (DEFAULT_ENCODE, _find_ffmpeg,
                                               decodes_png, encode_frames)
+from sphinxcontrib.screenshot._screencast import _crop_box
 
 
 def _video_dimensions(filepath):
@@ -242,11 +243,8 @@ def test_locator(app: SphinxTestApp, status: StringIO,
 
   webm = app.outdir / video['src']
   assert webm.exists()
-  # The HTML page has a #target div of 120x80px at margin 30px. The crop
-  # should produce a video roughly that size (libvpx may round to even).
-  width, height = _video_dimensions(webm)
-  assert 118 <= width <= 122, f'unexpected width {width}'
-  assert 78 <= height <= 82, f'unexpected height {height}'
+  # The HTML page has a #target div of 120x80px at margin 30px.
+  assert _video_dimensions(webm) == (120, 80)
 
 
 @pytest.mark.sphinx('html', testroot='screencast-color-scheme-auto')
@@ -282,10 +280,30 @@ def test_locator_padding(app: SphinxTestApp, status: StringIO,
   webm = app.outdir / video['src']
   assert webm.exists()
   # ``:locator-padding: 10`` widens the 120x80 #target bbox by 10 px on
-  # each side -> ~140x100. libvpx may round dimensions to even.
-  width, height = _video_dimensions(webm)
-  assert 138 <= width <= 142, f'unexpected width {width}'
-  assert 98 <= height <= 102, f'unexpected height {height}'
+  # each side -> 140x100.
+  assert _video_dimensions(webm) == (140, 100)
+
+
+@pytest.mark.sphinx('html', testroot='screencast-locator-poster')
+def test_locator_poster(app: SphinxTestApp, status: StringIO,
+                        warning: StringIO) -> None:
+  """Automatic posters have the same crop as the video, in CSS pixels."""
+  from PIL import Image
+
+  app.build()
+
+  soup = BeautifulSoup((app.outdir / "index.html").read_text(), "html.parser")
+  videos = soup.find_all('video')
+  assert len(videos) == 2
+
+  for video in videos:
+    # The 121x81 #target at (31, 31) grows to 200px wide during the
+    # interactions. The box is measured before them and rounded to even
+    # values, so the video and both posters are 122x82, even with a device
+    # scale factor of 2.
+    assert _video_dimensions(app.outdir / video['src']) == (122, 82)
+    poster = Image.open(app.outdir / video['poster'])
+    assert poster.size == (122, 82)
 
 
 @pytest.mark.sphinx('html', testroot='screencast-ffmpeg-options')
@@ -300,6 +318,36 @@ def test_ffmpeg_options(app: SphinxTestApp, status: StringIO,
   webm = app.outdir / video['src']
   assert webm.exists()
   assert webm.stat().st_size > 0
+
+
+@pytest.mark.parametrize(
+    'bbox, padding, expected',
+    [
+        # Sub-pixel edges round outwards, to even values.
+        ((10.5, 20.5, 100.2, 50.2), (0, 0, 0, 0), (10, 20, 102, 52)),
+        # Odd positions and sizes grow the box to even values.
+        ((31, 31, 121, 81), (0, 0, 0, 0), (30, 30, 122, 82)),
+        # Padding follows CSS order: top, right, bottom, left.
+        ((50, 50, 100, 50), (1, 2, 3, 4), (46, 48, 106, 56)),
+        # The padded box is clamped to the 320x200 viewport.
+        ((10, 10, 300, 180), (20, 20, 20, 20), (0, 0, 320, 200)),
+        # An element partly outside the viewport is cut at its edge.
+        ((-30, 150, 100, 100), (0, 0, 0, 0), (0, 150, 70, 50)),
+        # An element fully outside the viewport has no crop box.
+        ((400, 10, 50, 50), (0, 0, 0, 0), None),
+        ((-100, 10, 50, 50), (0, 0, 0, 0), None),
+    ])
+def test_crop_box(bbox, padding, expected) -> None:
+  """The crop box encloses the element, padded and clamped to the viewport."""
+  x, y, width, height = bbox
+  rect = {'x': x, 'y': y, 'width': width, 'height': height}
+  assert _crop_box(rect, padding, 320, 200) == expected
+
+
+def test_crop_box_odd_viewport() -> None:
+  """At the edge of an odd-sized viewport, the box shrinks to even values."""
+  rect = {'x': 300, 'y': 180, 'width': 21, 'height': 21}
+  assert _crop_box(rect, (0, 0, 0, 0), 321, 201) == (300, 180, 20, 20)
 
 
 def test_config_values_registered() -> None:
