@@ -19,11 +19,10 @@ import typing
 from docutils import nodes
 from docutils.parsers.rst import directives
 from docutils.parsers.rst.directives.images import Figure
-from playwright._impl._helper import ColorScheme
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
-from ._common import (ContextBuilder, _hash_filename, _navigate,
+from ._common import (ColorScheme, ContextBuilder, _hash_filename, _navigate,
                       _PlaywrightDirective, _prepare_context,
                       _run_interactions, parse_expected_status_codes,
                       parse_locator_padding)

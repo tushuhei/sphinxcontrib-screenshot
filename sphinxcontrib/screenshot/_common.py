@@ -26,13 +26,14 @@ from urllib.parse import urlparse
 
 from docutils import nodes
 from docutils.parsers.rst import directives
-from playwright._impl._helper import ColorScheme
 from playwright.sync_api import Browser, BrowserContext
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from sphinx.util import logging as sphinx_logging
 from sphinx.util.docutils import SphinxDirective
 
 logger = sphinx_logging.getLogger(__name__)
+
+ColorScheme = typing.Literal['dark', 'light', 'no-preference', 'null']
 
 ContextBuilder = typing.Optional[typing.Callable[[Browser, str, str],
                                                  BrowserContext]]
